@@ -21,13 +21,16 @@ export function Header() {
   }
 
   return (
-    <header className="relative z-20 grid h-16 grid-cols-[1fr_auto_1fr] items-center px-5 sm:px-8">
-      <Link href="/" className="flex items-center gap-2 justify-self-start">
+    <header className="relative z-20 mx-auto flex h-16 w-full max-w-6xl items-center justify-between pl-5 pr-5 sm:pl-8 sm:pr-6">
+      <Link href="/" className="flex items-center gap-2">
         <LayoutDashboard className="size-5 text-ink" aria-hidden />
         <span className="text-[22px] font-medium tracking-tight">FinBoard</span>
       </Link>
 
-      <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
+      <nav
+        aria-label="Primary"
+        className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex"
+      >
         <button
           type="button"
           className="text-sm text-ink/85 transition-colors hover:text-ink"
@@ -43,7 +46,7 @@ export function Header() {
         </a>
       </nav>
 
-      <div className="flex items-center gap-5 justify-self-end">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
