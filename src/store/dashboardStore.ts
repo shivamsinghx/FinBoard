@@ -93,6 +93,11 @@ interface DashboardState {
   /** True once persisted state has been restored on the client. */
   hasHydrated: boolean;
 
+  /** Add-widget modal state; transient — not persisted. */
+  addWidgetOpen: boolean;
+  /** URL carried into the modal from a quick-add composer. */
+  addWidgetPrefill: string;
+
   addWidget: (
     type: WidgetType,
     overrides?: {
@@ -111,6 +116,10 @@ interface DashboardState {
   openWidgetEditor: (id: string) => void;
   closeWidgetEditor: () => void;
 
+  /** Open the add-widget modal, optionally prefilling an API URL. */
+  openAddWidget: (url?: string) => void;
+  closeAddWidget: () => void;
+
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
 
@@ -128,6 +137,8 @@ export const useDashboardStore = create<DashboardState>()(
       theme: 'light',
       editingWidgetId: null,
       hasHydrated: false,
+      addWidgetOpen: false,
+      addWidgetPrefill: '',
 
       addWidget: (type, overrides) => {
         const id = createId();
@@ -192,6 +203,11 @@ export const useDashboardStore = create<DashboardState>()(
 
       openWidgetEditor: (id) => set({ editingWidgetId: id }),
       closeWidgetEditor: () => set({ editingWidgetId: null }),
+
+      openAddWidget: (url) =>
+        set({ addWidgetOpen: true, addWidgetPrefill: url ?? '' }),
+      closeAddWidget: () =>
+        set({ addWidgetOpen: false, addWidgetPrefill: '' }),
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),

@@ -17,8 +17,7 @@
   --color-page: var(--page);
   --color-surface: var(--surface);
   --color-raised: var(--raised);
-  --color-hero-edge: var(--hero-edge);
-  --color-hero-canvas: var(--hero-canvas);
+  --color-canvas: var(--canvas);
 
   /* text */
   --color-ink: var(--ink);
@@ -49,8 +48,7 @@
   --page: #f7f4ee;
   --surface: #ffffff;
   --raised: #fbf9f4;
-  --hero-edge: #e9e3d4;
-  --hero-canvas: #f7f4ee;
+  --canvas: #f9f8f5;
 
   --ink: #1c1917;
   --muted: #57534e;
@@ -75,8 +73,7 @@
   --page: #020617;
   --surface: #0f172a;
   --raised: #1e293b;
-  --hero-edge: #020617;
-  --hero-canvas: #0f172a;
+  --canvas: #020617;
 
   --ink: #f1f5f9;
   --muted: #94a3b8;
