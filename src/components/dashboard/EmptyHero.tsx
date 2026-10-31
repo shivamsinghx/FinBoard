@@ -50,7 +50,10 @@ export function EmptyHero() {
 
       <div className="relative z-10 mx-auto flex max-w-[940px] flex-col items-center px-6 pt-[10vh] pb-24 text-center">
         <h1 className="font-display text-[clamp(3.5rem,7vw,7.5rem)] leading-none tracking-[-0.02em]">
-          What&rsquo;s moving today?
+          What&rsquo;s moving 
+        </h1>
+        <h1 className="font-display text-[clamp(3.5rem,7vw,7.5rem)] leading-none tracking-[-0.02em]">
+          today?
         </h1>
 
         <p className="mt-7 text-[clamp(1.15rem,1.9vw,1.5rem)] font-medium leading-[1.6] text-ink/90">

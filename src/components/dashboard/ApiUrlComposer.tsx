@@ -44,7 +44,7 @@ export function ApiUrlComposer({ size = 'hero' }: ApiUrlComposerProps) {
       />
       <button
         type="submit"
-        className={`shrink-0 rounded-full bg-accent font-medium text-accent-contrast transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+        className={`shrink-0 rounded-full bg-linear-to-r from-accent via-[#4CC36E] to-[#A8E063] font-medium text-accent-contrast [text-shadow:0_1px_1px_rgba(4,60,40,0.35)] transition-[filter] hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
           hero ? 'px-5 py-2.5 text-base' : 'px-3 py-1.5 text-xs'
         }`}
       >
