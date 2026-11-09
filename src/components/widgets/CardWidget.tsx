@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { formatValue, toNumber } from '@/lib/formatters';
 import { getByPath } from '@/lib/jsonPaths';
-import { guessListColumns, looksLikeChange, urlWithSymbol } from '@/lib/cardDisplay';
+import {
+  guessListColumns,
+  isChangeKey,
+  isPercentChangeKey,
+  looksLikeChange,
+  urlWithSymbol,
+} from '@/lib/cardDisplay';
 import { rowsAtPath } from '@/lib/widgetFields';
 import type { CardColumnMap, CardKind, FieldMapping, WidgetInstance } from '@/types/widget';
 import { WidgetShell } from './WidgetShell';
@@ -186,20 +192,26 @@ function ListRows({
   const nameKey =
     columns?.name ?? guessed.name ?? (rows[0] ? Object.keys(rows[0])[0] : '');
   const priceKey = columns?.price ?? guessed.price;
-  const changeKey = columns?.change ?? guessed.change;
+  const mappedChange = columns?.change ?? guessed.change;
+  // The change column only renders when it really is a change field —
+  // never the same key as price, never a volume/date that was mis-mapped.
+  const changeCol =
+    mappedChange && mappedChange !== priceKey && isChangeKey(mappedChange)
+      ? mappedChange
+      : undefined;
 
   const sorted =
-    kind === 'watchlist' || !changeKey
+    kind === 'watchlist' || !changeCol
       ? rows
       : [...rows].sort((a, b) => {
-          const d = (toNumber(b[changeKey]) ?? 0) - (toNumber(a[changeKey]) ?? 0);
+          const d = (toNumber(b[changeCol]) ?? 0) - (toNumber(a[changeCol]) ?? 0);
           return kind === 'gainers' ? d : -d;
         });
 
   return (
     <ul className="divide-y divide-subtle/60">
       {sorted.slice(0, MAX_LIST_ROWS).map((row, i) => {
-        const cn = changeKey ? toNumber(row[changeKey]) : null;
+        const cn = changeCol ? toNumber(row[changeCol]) : null;
         return (
           <li key={i} className="flex items-baseline gap-2 py-1.5 text-sm">
             <span className="min-w-0 flex-1 truncate font-medium">
@@ -210,14 +222,17 @@ function ListRows({
                 {formatValue(row[priceKey], 'auto')}
               </span>
             )}
-            {changeKey && (
+            {changeCol && (
               <span
                 className={`w-16 shrink-0 text-right tabular-nums ${
                   cn === null ? 'text-muted' : cn > 0 ? 'text-up' : cn < 0 ? 'text-down' : 'text-muted'
                 }`}
               >
                 {cn !== null && cn !== 0 && <span className="mr-0.5 text-[0.8em]">{cn > 0 ? '▲' : '▼'}</span>}
-                {formatValue(row[changeKey], 'percent')}
+                {formatValue(
+                  row[changeCol],
+                  isPercentChangeKey(changeCol) ? 'percent' : 'auto',
+                )}
               </span>
             )}
           </li>
@@ -290,8 +305,12 @@ function SymbolRow({
 
   const guessed = guessListColumns(Object.keys(rec));
   const priceKey = columns?.price ?? guessed.price;
-  const changeKey = columns?.change ?? guessed.change;
-  const cn = changeKey ? toNumber(getByPath(rec, changeKey)) : null;
+  const mappedChange = columns?.change ?? guessed.change;
+  const changeCol =
+    mappedChange && mappedChange !== priceKey && isChangeKey(mappedChange)
+      ? mappedChange
+      : undefined;
+  const cn = changeCol ? toNumber(getByPath(rec, changeCol)) : null;
 
   return (
     <li className="flex items-baseline gap-2 py-1.5 text-sm">
@@ -301,7 +320,7 @@ function SymbolRow({
           {formatValue(getByPath(rec, priceKey), 'auto')}
         </span>
       )}
-      {changeKey && (
+      {changeCol && (
         <span
           className={`w-16 shrink-0 text-right tabular-nums ${
             cn === null ? 'text-muted' : cn > 0 ? 'text-up' : cn < 0 ? 'text-down' : 'text-muted'
@@ -310,7 +329,10 @@ function SymbolRow({
           {cn !== null && cn !== 0 && (
             <span className="mr-0.5 text-[0.8em]">{cn > 0 ? '▲' : '▼'}</span>
           )}
-          {formatValue(getByPath(rec, changeKey), 'percent')}
+          {formatValue(
+            getByPath(rec, changeCol),
+            isPercentChangeKey(changeCol) ? 'percent' : 'auto',
+          )}
         </span>
       )}
     </li>

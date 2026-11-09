@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   guessListColumns,
+  isChangeKey,
+  isPercentChangeKey,
   looksLikeChange,
   suggestPerformanceFields,
   urlWithSymbol,
@@ -19,9 +21,11 @@ describe('looksLikeChange', () => {
   });
   it('flags change-ish labels and paths', () => {
     expect(looksLikeChange(f('dp', 'dp'))).toBe(true);
-    expect(looksLikeChange(f('pc', 'pc'))).toBe(true);
     expect(looksLikeChange(f('x', 'Change %'))).toBe(true);
     expect(looksLikeChange(f('a.b.changePercent', 'x'))).toBe(true);
+  });
+  it('does not flag pc — that is previous close, a price', () => {
+    expect(looksLikeChange(f('pc', 'pc'))).toBe(false);
   });
   it('leaves plain price fields alone', () => {
     expect(looksLikeChange(f('c', 'Price'))).toBe(false);
@@ -74,6 +78,43 @@ describe('guessListColumns', () => {
   });
   it('omits roles nothing matched', () => {
     expect(guessListColumns(['a', 'b'])).toEqual({});
+  });
+  it('leaves change empty when nothing change-like exists — never reuses the price column', () => {
+    // Regression: a row rendered "10.54M ▲10.54M%" because price and
+    // change both resolved to the same (volume) field.
+    const cols = guessListColumns(['symbol', 'price', 'volume']);
+    expect(cols).toEqual({ name: 'symbol', price: 'price' });
+    expect(cols.change).toBeUndefined();
+    expect(cols.change).not.toBe(cols.price);
+  });
+  it('maps absolute change columns — rendered later without a %', () => {
+    const cols = guessListColumns(['ticker', 'price', 'change_amount']);
+    expect(cols.change).toBe('change_amount');
+    expect(isChangeKey('change_amount')).toBe(true);
+    expect(isPercentChangeKey('change_amount')).toBe(false);
+  });
+  it('does not guess ambiguous d — explicit mappings still render via isChangeKey', () => {
+    // 'd' is Finnhub's absolute change but a plausible date column
+    // elsewhere — guessing leaves it alone; a manual pick still works.
+    expect(guessListColumns(['c', 'd'])).toEqual({ price: 'c' });
+    expect(isChangeKey('d')).toBe(true);
+    expect(isPercentChangeKey('d')).toBe(false);
+  });
+});
+
+describe('change-key classification', () => {
+  it('recognizes percent and absolute change keys', () => {
+    expect(isChangeKey('change_percentage')).toBe(true);
+    expect(isPercentChangeKey('change_percentage')).toBe(true);
+    expect(isChangeKey('dp')).toBe(true);
+    expect(isPercentChangeKey('dp')).toBe(true);
+    expect(isChangeKey('delta')).toBe(true);
+    expect(isPercentChangeKey('delta')).toBe(false);
+  });
+  it('rejects non-change columns', () => {
+    for (const k of ['volume', 'pc', 'c', 'price', 'shares']) {
+      expect(isChangeKey(k)).toBe(false);
+    }
   });
 });
 

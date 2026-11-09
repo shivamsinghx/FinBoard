@@ -471,6 +471,14 @@ function ModalPanel({
     setTried(true);
     if (firstError) return;
     const endpoint = url.trim();
+    // Defensive: a column can never serve two card roles.
+    const cols = Object.fromEntries(
+      Object.entries(cardColumns).filter(([, v]) => !!v),
+    ) as CardColumnMap;
+    if (cols.price && cols.price === cols.change) cols.change = undefined;
+    if (cols.name && (cols.name === cols.price || cols.name === cols.change)) {
+      cols.name = undefined;
+    }
     const cardKind: CardKind =
       cardType === 'performance'
         ? 'performance'
@@ -492,11 +500,7 @@ function ModalPanel({
               symbols: cardSymbolsMode ? symbols : [],
               listPath: cardListMode ? selectedList?.path : undefined,
               columns:
-                cardListMode || cardSymbolsMode
-                  ? (Object.fromEntries(
-                      Object.entries(cardColumns).filter(([, v]) => !!v),
-                    ) as CardColumnMap)
-                  : undefined,
+                cardListMode || cardSymbolsMode ? cols : undefined,
             }
           : undefined,
       table:

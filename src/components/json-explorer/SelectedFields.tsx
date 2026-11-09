@@ -243,32 +243,51 @@ export function CardColumnFields({
   onChange: (map: CardColumnMap) => void;
   nameIsSymbol?: boolean;
 }) {
+  // Keys claimed by other roles are hidden from each select, and picking
+  // one clears the conflicting role — a column can never serve two roles.
+  const taken = new Set(
+    CARD_COLUMN_ROLES.map((r) => value[r.key]).filter((k): k is string => !!k),
+  );
+  function pick(role: keyof CardColumnMap, key: string | undefined) {
+    const next: CardColumnMap = { ...value, [role]: key };
+    if (key) {
+      for (const r of CARD_COLUMN_ROLES) {
+        if (r.key !== role && next[r.key] === key) next[r.key] = undefined;
+      }
+    }
+    onChange(next);
+  }
+
   return (
     <div className="mt-2 grid grid-cols-3 gap-2">
-      {CARD_COLUMN_ROLES.map(({ key, label }) => (
-        <label key={key} className="block">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
-            {label}
-          </span>
-          <select
-            value={key === 'name' && nameIsSymbol ? '' : (value[key] ?? '')}
-            disabled={key === 'name' && nameIsSymbol}
-            onChange={(e) =>
-              onChange({ ...value, [key]: e.target.value || undefined })
-            }
-            className="mt-1 w-full rounded-md border border-subtle bg-raised px-2 py-1.5 text-xs text-ink outline-none focus:border-accent disabled:opacity-60"
-          >
-            <option value="">
-              {key === 'name' && nameIsSymbol ? '— symbol —' : '— none —'}
-            </option>
-            {options.map((k) => (
-              <option key={k} value={k}>
-                {k}
+      {CARD_COLUMN_ROLES.map(({ key, label }) => {
+        const pinSymbol = key === 'name' && nameIsSymbol;
+        const roleOptions = pinSymbol
+          ? []
+          : options.filter((k) => k === value[key] || !taken.has(k));
+        return (
+          <label key={key} className="block">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
+              {label}
+            </span>
+            <select
+              value={pinSymbol ? '' : (value[key] ?? '')}
+              disabled={pinSymbol}
+              onChange={(e) => pick(key, e.target.value || undefined)}
+              className="mt-1 w-full rounded-md border border-subtle bg-raised px-2 py-1.5 text-xs text-ink outline-none focus:border-accent disabled:opacity-60"
+            >
+              <option value="">
+                {pinSymbol ? '— symbol —' : '— none —'}
               </option>
-            ))}
-          </select>
-        </label>
-      ))}
+              {roleOptions.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
     </div>
   );
 }

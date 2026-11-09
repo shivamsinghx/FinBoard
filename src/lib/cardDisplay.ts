@@ -8,7 +8,8 @@
 import { normalizeKey } from './widgetFields';
 import type { CardColumnMap, FieldMapping } from '@/types/widget';
 
-const CHANGE_RE = /change|dp|pc|%|percent/i;
+// Not 'pc' — on Finnhub that key is previous close (a price), not a change.
+const CHANGE_RE = /change|dp|%|percent/i;
 
 /** True when a field reads as a price-movement value. */
 export function looksLikeChange(field: FieldMapping): boolean {
@@ -41,23 +42,28 @@ const LIST_LOOSE: readonly [keyof ListColumns, readonly RegExp[]][] = [
 
 /**
  * Guess the name / price / change columns of a watchlist-style row list.
- * Exact names first, then tiered substring matches; each role is claimed
- * at most once.
+ * Exact names first, then tiered substring matches; a key is claimed by
+ * at most one role, and roles stay empty when nothing plausible
+ * matches — a wrong guess (e.g. `volume` as change) is worse than none.
  */
 export function guessListColumns(keys: string[]): ListColumns {
   const cols: ListColumns = {};
   const norm = keys.map((key) => ({ key, n: normalizeKey(key) }));
+  const claimed = () => Object.values(cols);
   for (const { key, n } of norm) {
-    if (!n) continue;
+    if (!n || claimed().includes(key)) continue;
     for (const [role, re] of LIST_EXACT) {
-      if (cols[role] === undefined && re.test(n)) cols[role] = key;
+      if (cols[role] === undefined && re.test(n)) {
+        cols[role] = key;
+        break; // a key serves one role only
+      }
     }
   }
   for (const [role, tiers] of LIST_LOOSE) {
     if (cols[role] !== undefined) continue;
     for (const re of tiers) {
       const hit = norm.find(
-        ({ key, n }) => n && re.test(n) && !Object.values(cols).includes(key),
+        ({ key, n }) => n && re.test(n) && !claimed().includes(key),
       );
       if (hit) {
         cols[role] = hit.key;
@@ -66,6 +72,26 @@ export function guessListColumns(keys: string[]): ListColumns {
     }
   }
   return cols;
+}
+
+/* ------------------------------------------------------------------ */
+/* Change-column classification                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * True when the column key itself reads as a change value — either a
+ * percentage (`change_percentage`, `dp`, `pct`) or an absolute move
+ * (`change_amount`, Finnhub `d`). Deliberately stricter than
+ * looksLikeChange: `pc` (previous close) and `volume` don't count.
+ */
+export function isChangeKey(key: string): boolean {
+  const n = normalizeKey(key);
+  return n === 'd' || /change|delta|pct|percent|%|dp/.test(n);
+}
+
+/** Subset of isChangeKey: the value is a percentage, so render a %. */
+export function isPercentChangeKey(key: string): boolean {
+  return /percent|pct|%|dp/.test(normalizeKey(key));
 }
 
 /* ------------------------------------------------------------------ */
