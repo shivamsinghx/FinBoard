@@ -266,6 +266,16 @@ export function useWidgetData(
   };
 }
 
+/**
+ * Re-fetch a URL's shared cache entry now — joins any in-flight request
+ * for the same URL, so duplicate URLs across widgets still cost one
+ * request. Used by the toolbar's "Refresh all"; widgets' own shells use
+ * their hook's refetch (which also resets the poll timer).
+ */
+export function refetchUrl(url: string): Promise<void> {
+  return url.trim() ? request(url) : Promise.resolve();
+}
+
 /* ------------------------------------------------------------------ */
 /* Internals (exported for unit tests)                                  */
 /* ------------------------------------------------------------------ */

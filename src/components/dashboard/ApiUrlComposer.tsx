@@ -22,10 +22,10 @@ export function ApiUrlComposer({ size = 'hero' }: ApiUrlComposerProps) {
   return (
     <form
       onSubmit={onSubmit}
-      className={`flex items-center rounded-full border border-subtle bg-surface ${
+      className={`items-center rounded-full border border-subtle bg-surface ${
         hero
-          ? 'h-14 w-[380px] max-w-full pl-5 pr-1.5 shadow-[0_10px_40px_rgba(20,20,20,0.07)]'
-          : 'h-9 pl-3.5 pr-1'
+          ? 'flex h-14 w-[380px] max-w-full pl-5 pr-1.5 shadow-[0_10px_40px_rgba(20,20,20,0.07)]'
+          : 'hidden h-9 pl-3.5 pr-1 sm:flex' // toolbar's Add widget covers small screens
       }`}
     >
       <label htmlFor={hero ? 'hero-api-url' : 'nav-api-url'} className="sr-only">

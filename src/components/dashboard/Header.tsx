@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { LayoutDashboard } from 'lucide-react';
 import { useDashboardStore } from '@/store/dashboardStore';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { ApiUrlComposer } from './ApiUrlComposer';
 
 export function Header() {
@@ -21,7 +22,7 @@ export function Header() {
   }
 
   return (
-    <header className="relative z-20 mx-auto flex h-16 w-full max-w-6xl items-center justify-between pl-5 pr-5 sm:pl-8 sm:pr-6">
+    <header className="relative z-20 mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-6">
       <Link href="/" className="flex items-center gap-2">
         <LayoutDashboard className="size-5 text-ink" aria-hidden />
         <span className="text-[22px] font-medium tracking-tight">FinBoard</span>
@@ -64,6 +65,7 @@ export function Header() {
         />
 
         <ApiUrlComposer size="nav" />
+        <ThemeToggle />
       </div>
     </header>
   );
