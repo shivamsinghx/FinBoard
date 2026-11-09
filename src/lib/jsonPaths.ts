@@ -63,7 +63,7 @@ export interface FlatField {
 const SAMPLE_MAX = 80;
 const DEFAULT_MAX_LEAVES = 2000;
 
-function leafType(value: unknown): LeafType {
+export function leafType(value: unknown): LeafType {
   if (value === null || value === undefined) return 'null';
   switch (typeof value) {
     case 'number':
@@ -78,7 +78,7 @@ function leafType(value: unknown): LeafType {
   }
 }
 
-function sampleOf(value: unknown): string {
+export function sampleOf(value: unknown): string {
   const s =
     typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value));
   return s.length > SAMPLE_MAX ? `${s.slice(0, SAMPLE_MAX - 1)}…` : s;

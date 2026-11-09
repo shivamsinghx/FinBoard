@@ -1,11 +1,28 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { useDashboardStore } from '@/store/dashboardStore';
-import { findArrays, flattenJson } from '@/lib/jsonPaths';
+import { findArrays, flattenJson, type ArrayInfo } from '@/lib/jsonPaths';
+import {
+  columnsForRows,
+  guessOhlcFields,
+  lastPathSegment,
+  prettifyKey,
+  rowsForList,
+  type OhlcGuess,
+} from '@/lib/widgetFields';
 import type { ProxyErrorCode } from '@/types/api';
-import type { WidgetType } from '@/types/widget';
+import type { ChartKind, FieldMapping, WidgetType } from '@/types/widget';
+import { JsonExplorer } from '@/components/json-explorer/JsonExplorer';
+import { ChartFields, FieldList } from '@/components/json-explorer/SelectedFields';
 
 const MODE_TABS: { type: WidgetType; label: string }[] = [
   { type: 'card', label: 'Card' },
@@ -66,6 +83,48 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
   /** Guards against stale responses and StrictMode double-effects. */
   const seqRef = useRef(0);
 
+  /* ---- stage 2: field selection state (saved in stage 3) ---- */
+  /** List picked for table/chart modes. */
+  const [selectedList, setSelectedList] = useState<ArrayInfo | null>(null);
+  const [cardFields, setCardFields] = useState<FieldMapping[]>([]);
+  const [tableFields, setTableFields] = useState<FieldMapping[]>([]);
+  const [chartType, setChartType] = useState<ChartKind>('line');
+  const [xField, setXField] = useState<string | null>(null);
+  const [chartValues, setChartValues] = useState<FieldMapping[]>([]);
+  const [ohlc, setOhlc] = useState<OhlcGuess>({});
+
+  const resetSelection = useCallback(() => {
+    setSelectedList(null);
+    setCardFields([]);
+    setTableFields([]);
+    setChartValues([]);
+    setXField(null);
+    setOhlc({});
+  }, []);
+
+  /** Columns of the picked list — shared by the chart config + guesses. */
+  const columns = useMemo(
+    () =>
+      test.phase === 'ok' && selectedList
+        ? columnsForRows(rowsForList(test.data, selectedList))
+        : [],
+    [test, selectedList],
+  );
+
+  /** Keys already picked in the active mode — greys out their "+" row. */
+  const addedKeys = useMemo(() => {
+    if (mode === 'card') return new Set(cardFields.map((f) => f.path));
+    if (mode === 'table') return new Set(tableFields.map((f) => f.path));
+    if (chartType === 'candle') {
+      return new Set(
+        [ohlc.open, ohlc.high, ohlc.low, ohlc.close].filter(
+          (k): k is string => !!k,
+        ),
+      );
+    }
+    return new Set(chartValues.map((f) => f.path));
+  }, [mode, cardFields, tableFields, chartType, chartValues, ohlc]);
+
   const runTest = useCallback(async (target: string) => {
     const trimmed = target.trim();
     if (!trimmed) return;
@@ -95,12 +154,70 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
         (f) => f.type !== 'object' && f.type !== 'array',
       ).length;
       const lists = findArrays(body).length;
+      resetSelection(); // new payload — old picks may no longer exist
       setTest({ phase: 'ok', url: trimmed, data: body, fields, lists });
     } catch {
       if (seq !== seqRef.current) return;
       setTest({ phase: 'fail', code: 'NETWORK', error: null });
     }
-  }, []);
+  }, [resetSelection]);
+
+  /** Pick a list (table/chart) — resets row-level picks, seeds chart guesses. */
+  function onSelectList(list: ArrayInfo | null) {
+    setSelectedList(list);
+    setTableFields([]);
+    setChartValues([]);
+    setXField(null);
+    setOhlc({});
+    if (!list || test.phase !== 'ok') return;
+    const keys = columnsForRows(rowsForList(test.data, list)).map((c) => c.key);
+    const g = guessOhlcFields(keys);
+    setXField(g.date ?? null);
+    setOhlc({ open: g.open, high: g.high, low: g.low, close: g.close });
+  }
+
+  function onChartType(kind: ChartKind) {
+    setChartType(kind);
+    if (kind === 'candle' && columns.length) {
+      const g = guessOhlcFields(columns.map((c) => c.key));
+      // Fill only unmapped slots — never clobber the user's picks.
+      setOhlc((o) => ({
+        open: o.open ?? g.open,
+        high: o.high ?? g.high,
+        low: o.low ?? g.low,
+        close: o.close ?? g.close,
+      }));
+    }
+  }
+
+  /** "+" in the explorer — meaning depends on mode/chart type. */
+  function onPick(key: string) {
+    if (mode === 'card') {
+      if (cardFields.some((f) => f.path === key)) return;
+      setCardFields((fs) => [
+        ...fs,
+        { path: key, label: prettifyKey(lastPathSegment(key)), format: 'auto' },
+      ]);
+    } else if (mode === 'table') {
+      if (tableFields.some((f) => f.path === key)) return;
+      setTableFields((fs) => [
+        ...fs,
+        { path: key, label: prettifyKey(key), format: 'auto' },
+      ]);
+    } else if (chartType === 'candle') {
+      // In candle mode "+" fills the first unmapped OHLC slot.
+      const slot = (['open', 'high', 'low', 'close'] as const).find(
+        (s) => !ohlc[s],
+      );
+      if (slot) setOhlc((o) => ({ ...o, [slot]: key }));
+    } else {
+      if (chartValues.some((f) => f.path === key)) return;
+      setChartValues((fs) => [
+        ...fs,
+        { path: key, label: prettifyKey(key), format: 'auto' },
+      ]);
+    }
+  }
 
   // A URL passed in from the hero/nav composer is pre-filled and tested once.
   const didAutoTest = useRef(false);
@@ -136,7 +253,9 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
       onClick={closeAddWidget}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-subtle bg-surface p-6 shadow-xl"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-subtle bg-surface p-6 shadow-xl transition-[max-width] ${
+          test.phase === 'ok' ? 'max-w-2xl' : 'max-w-md'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
@@ -245,6 +364,52 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
             </button>
           ))}
         </div>
+
+        {test.phase === 'ok' && (
+          <>
+            <JsonExplorer
+              mode={mode}
+              data={test.data}
+              selectedList={selectedList}
+              onSelectList={onSelectList}
+              addedKeys={addedKeys}
+              onAdd={onPick}
+            />
+
+            <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+              Selected fields
+            </p>
+            {mode === 'card' && (
+              <FieldList fields={cardFields} onChange={setCardFields} />
+            )}
+            {mode === 'table' &&
+              (selectedList ? (
+                <FieldList fields={tableFields} onChange={setTableFields} />
+              ) : (
+                <p className="mt-2 text-xs text-faint">
+                  Pick a list above, then add its columns.
+                </p>
+              ))}
+            {mode === 'chart' &&
+              (selectedList ? (
+                <ChartFields
+                  columns={columns}
+                  chartType={chartType}
+                  onChartType={onChartType}
+                  xField={xField}
+                  onXField={setXField}
+                  values={chartValues}
+                  onValues={setChartValues}
+                  ohlc={ohlc}
+                  onOhlc={setOhlc}
+                />
+              ) : (
+                <p className="mt-2 text-xs text-faint">
+                  Pick a list above to map chart fields.
+                </p>
+              ))}
+          </>
+        )}
       </div>
     </div>
   );
