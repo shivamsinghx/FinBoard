@@ -12,6 +12,7 @@
 
 import {
   getByPath,
+  isDateKeyed,
   leafType,
   sampleOf,
   type ArrayInfo,
@@ -42,6 +43,26 @@ export function rowsForList(
   return Object.entries(node)
     .filter(([, v]) => isRecord(v))
     .map(([date, v]) => ({ date, ...(v as Record<string, unknown>) }));
+}
+
+/**
+ * Path-only variant of `rowsForList` for saved widgets — they store
+ * `listPath` but not the `kind`, so it is auto-detected here: an array
+ * yields its object elements, a date-keyed object yields
+ * `{ date, ...values }` rows, anything else yields nothing.
+ */
+export function rowsAtPath(
+  data: unknown,
+  listPath: string,
+): Record<string, unknown>[] {
+  const node = getByPath(data, listPath);
+  if (Array.isArray(node)) return node.filter(isRecord);
+  if (isRecord(node) && isDateKeyed(node)) {
+    return Object.entries(node)
+      .filter(([, v]) => isRecord(v))
+      .map(([date, v]) => ({ date, ...(v as Record<string, unknown>) }));
+  }
+  return [];
 }
 
 export interface ColumnInfo {

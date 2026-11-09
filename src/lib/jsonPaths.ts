@@ -237,7 +237,8 @@ export interface ArrayInfo {
 }
 
 /** Every key looks like a date and every value is a plain object. */
-function isDateKeyed(rec: Record<string, unknown>, keys: string[]): boolean {
+export function isDateKeyed(rec: Record<string, unknown>): boolean {
+  const keys = Object.keys(rec);
   return (
     keys.length > 0 &&
     keys.every(isDateString) &&
@@ -268,7 +269,7 @@ export function findArrays(root: unknown): ArrayInfo[] {
     }
     if (!isRecord(value)) return;
     const keys = Object.keys(value);
-    if (isDateKeyed(value, keys)) {
+    if (isDateKeyed(value)) {
       const first = value[keys[0]] as Record<string, unknown>;
       out.push({
         path,

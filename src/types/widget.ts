@@ -53,6 +53,8 @@ export interface CardSettings {
 }
 
 export interface TableSettings {
+  /** Path to the array (or date-keyed object) the rows come from. */
+  listPath?: string;
   pageSize: number;
   /** Path of the FieldMapping used for sorting, if any. */
   sortField?: string;
@@ -71,9 +73,20 @@ export type ChartInterval =
   | 'weekly'
   | 'monthly';
 
+/** Candle open/high/low/close → row column key. */
+export type CandleMap = Partial<
+  Record<'open' | 'high' | 'low' | 'close', string>
+>;
+
 export interface ChartSettings {
   kind: ChartKind;
   interval: ChartInterval;
+  /** Path to the array (or date-keyed object) the series comes from. */
+  listPath?: string;
+  /** Row key used for the x axis (usually a date/time column). */
+  xField?: string;
+  /** Column mapping for candle charts. */
+  ohlc?: CandleMap;
 }
 
 /* ------------------------------------------------------------------ */

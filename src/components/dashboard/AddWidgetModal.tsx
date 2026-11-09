@@ -9,18 +9,25 @@ import {
   type FormEvent,
 } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
-import { useDashboardStore } from '@/store/dashboardStore';
+import { selectEditingWidget, useDashboardStore } from '@/store/dashboardStore';
 import { findArrays, flattenJson, type ArrayInfo } from '@/lib/jsonPaths';
 import {
   columnsForRows,
   guessOhlcFields,
   lastPathSegment,
   prettifyKey,
-  rowsForList,
+  rowsAtPath,
   type OhlcGuess,
 } from '@/lib/widgetFields';
 import type { ProxyErrorCode } from '@/types/api';
-import type { ChartKind, FieldMapping, WidgetType } from '@/types/widget';
+import type {
+  ApiProvider,
+  ChartKind,
+  FieldMapping,
+  WidgetConfig,
+  WidgetInstance,
+  WidgetType,
+} from '@/types/widget';
 import { JsonExplorer } from '@/components/json-explorer/JsonExplorer';
 import { ChartFields, FieldList } from '@/components/json-explorer/SelectedFields';
 
@@ -59,39 +66,100 @@ const FRIENDLY_ERRORS: Record<ProxyErrorCode, string> = {
   INVALID_URL: 'That URL isn’t allowed — it must be a public http(s) address.',
 };
 
-/** Result of the one-shot "Test" call — kept for the field picker (stage 2). */
+const OHLC_ROLES = ['open', 'high', 'low', 'close'] as const;
+const MIN_REFRESH_SEC = 10;
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+/** Result of the one-shot "Test" call — kept for the field picker. */
 type TestState =
   | { phase: 'idle' }
   | { phase: 'testing' }
   | { phase: 'ok'; url: string; data: unknown; fields: number; lists: number }
   | { phase: 'fail'; code: ProxyErrorCode; error: string | null };
 
-export function AddWidgetModal() {
-  const open = useDashboardStore((s) => s.addWidgetOpen);
-  const prefill = useDashboardStore((s) => s.addWidgetPrefill);
+type Errors = Partial<Record<'name' | 'url' | 'fields' | 'refresh', string>>;
 
-  if (!open) return null;
-  return <ModalPanel initialUrl={prefill} />;
+function detectProvider(endpoint: string): ApiProvider {
+  try {
+    const host = new URL(endpoint).hostname.toLowerCase();
+    if (host === 'finnhub.io' || host.endsWith('.finnhub.io')) return 'finnhub';
+    if (host === 'alphavantage.co' || host.endsWith('.alphavantage.co')) {
+      return 'alpha-vantage';
+    }
+  } catch {
+    /* fall through — invalid or unknown host */
+  }
+  return 'custom';
 }
 
-/** Mounted only while the modal is open, so state resets per open. */
-function ModalPanel({ initialUrl }: { initialUrl: string }) {
+export function AddWidgetModal() {
+  const addOpen = useDashboardStore((s) => s.addWidgetOpen);
+  const prefill = useDashboardStore((s) => s.addWidgetPrefill);
+  const editing = useDashboardStore(selectEditingWidget);
+
+  if (!addOpen && !editing) return null;
+  return (
+    <ModalPanel
+      key={editing ? editing.id : 'add'}
+      initialUrl={editing ? editing.config.endpoint : prefill}
+      editing={editing}
+    />
+  );
+}
+
+/** Mounted only while open, so all state resets per open/edit target. */
+function ModalPanel({
+  initialUrl,
+  editing,
+}: {
+  initialUrl: string;
+  editing: WidgetInstance | null;
+}) {
   const closeAddWidget = useDashboardStore((s) => s.closeAddWidget);
-  const [url, setUrl] = useState(initialUrl);
+  const closeWidgetEditor = useDashboardStore((s) => s.closeWidgetEditor);
+  const addWidget = useDashboardStore((s) => s.addWidget);
+  const updateWidgetConfig = useDashboardStore((s) => s.updateWidgetConfig);
+  const close = editing ? closeWidgetEditor : closeAddWidget;
+  const isEdit = !!editing;
+
+  const [title, setTitle] = useState(editing?.config.title ?? '');
+  const [url, setUrl] = useState(editing?.config.endpoint ?? initialUrl);
+  const [refreshSec, setRefreshSec] = useState(
+    editing?.config.refreshIntervalSec ?? 60,
+  );
   const [test, setTest] = useState<TestState>({ phase: 'idle' });
-  const [mode, setMode] = useState<WidgetType>('card');
+  const [mode, setMode] = useState<WidgetType>(editing?.type ?? 'card');
+  const [tried, setTried] = useState(false);
   /** Guards against stale responses and StrictMode double-effects. */
   const seqRef = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  /* ---- stage 2: field selection state (saved in stage 3) ---- */
-  /** List picked for table/chart modes. */
-  const [selectedList, setSelectedList] = useState<ArrayInfo | null>(null);
-  const [cardFields, setCardFields] = useState<FieldMapping[]>([]);
-  const [tableFields, setTableFields] = useState<FieldMapping[]>([]);
-  const [chartType, setChartType] = useState<ChartKind>('line');
-  const [xField, setXField] = useState<string | null>(null);
-  const [chartValues, setChartValues] = useState<FieldMapping[]>([]);
-  const [ohlc, setOhlc] = useState<OhlcGuess>({});
+  /* ---- field selection state (prefilled from the widget when editing) ---- */
+  const [selectedList, setSelectedList] = useState<ArrayInfo | null>(() => {
+    const lp =
+      editing?.config.table?.listPath ?? editing?.config.chart?.listPath;
+    // Only the path is persisted — kind/count/keys are derived from data.
+    return lp ? { path: lp, kind: 'array', count: 0, keys: [] } : null;
+  });
+  const [cardFields, setCardFields] = useState<FieldMapping[]>(
+    editing?.type === 'card' ? editing.config.fields : [],
+  );
+  const [tableFields, setTableFields] = useState<FieldMapping[]>(
+    editing?.type === 'table' ? editing.config.fields : [],
+  );
+  const [chartType, setChartType] = useState<ChartKind>(
+    editing?.config.chart?.kind ?? 'line',
+  );
+  const [xField, setXField] = useState<string | null>(
+    editing?.config.chart?.xField ?? null,
+  );
+  const [chartValues, setChartValues] = useState<FieldMapping[]>(
+    editing?.type === 'chart' && editing.config.chart?.kind !== 'candle'
+      ? editing.config.fields
+      : [],
+  );
+  const [ohlc, setOhlc] = useState<OhlcGuess>(editing?.config.chart?.ohlc ?? {});
 
   const resetSelection = useCallback(() => {
     setSelectedList(null);
@@ -102,67 +170,147 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
     setOhlc({});
   }, []);
 
-  /** Columns of the picked list — shared by the chart config + guesses. */
-  const columns = useMemo(
-    () =>
-      test.phase === 'ok' && selectedList
-        ? columnsForRows(rowsForList(test.data, selectedList))
-        : [],
-    [test, selectedList],
+  const runTest = useCallback(
+    async (target: string) => {
+      const trimmed = target.trim();
+      if (!trimmed) return;
+      const seq = ++seqRef.current;
+      setTest({ phase: 'testing' });
+      try {
+        const res = await fetch(`/api/proxy?url=${encodeURIComponent(trimmed)}`, {
+          cache: 'no-store',
+        });
+        const body: unknown = await res.json().catch(() => null);
+        if (seq !== seqRef.current) return;
+        if (!res.ok) {
+          const b = body as { code?: unknown; error?: unknown } | null;
+          const code =
+            typeof b?.code === 'string' && b.code in FRIENDLY_ERRORS
+              ? (b.code as ProxyErrorCode)
+              : 'NETWORK';
+          setTest({
+            phase: 'fail',
+            code,
+            error: typeof b?.error === 'string' ? b.error : null,
+          });
+          return;
+        }
+        // Empty containers can't be mapped to a field — don't count them.
+        const fields = flattenJson(body).filter(
+          (f) => f.type !== 'object' && f.type !== 'array',
+        ).length;
+        const lists = findArrays(body).length;
+        resetSelection(); // new payload — old picks may no longer exist
+        setTest({ phase: 'ok', url: trimmed, data: body, fields, lists });
+      } catch {
+        if (seq !== seqRef.current) return;
+        setTest({ phase: 'fail', code: 'NETWORK', error: null });
+      }
+    },
+    [resetSelection],
   );
 
-  /** Keys already picked in the active mode — greys out their "+" row. */
-  const addedKeys = useMemo(() => {
-    if (mode === 'card') return new Set(cardFields.map((f) => f.path));
-    if (mode === 'table') return new Set(tableFields.map((f) => f.path));
-    if (chartType === 'candle') {
-      return new Set(
-        [ohlc.open, ohlc.high, ohlc.low, ohlc.close].filter(
-          (k): k is string => !!k,
-        ),
-      );
+  // A URL (prefill or a saved widget's endpoint) is tested once on open.
+  const didAutoTest = useRef(false);
+  useEffect(() => {
+    const initial = editing?.config.endpoint ?? initialUrl;
+    if (initial && !didAutoTest.current) {
+      didAutoTest.current = true;
+      void runTest(initial);
     }
-    return new Set(chartValues.map((f) => f.path));
-  }, [mode, cardFields, tableFields, chartType, chartValues, ohlc]);
+  }, [initialUrl, editing, runTest]);
 
-  const runTest = useCallback(async (target: string) => {
-    const trimmed = target.trim();
-    if (!trimmed) return;
-    const seq = ++seqRef.current;
-    setTest({ phase: 'testing' });
-    try {
-      const res = await fetch(`/api/proxy?url=${encodeURIComponent(trimmed)}`, {
-        cache: 'no-store',
-      });
-      const body: unknown = await res.json().catch(() => null);
-      if (seq !== seqRef.current) return;
-      if (!res.ok) {
-        const b = body as { code?: unknown; error?: unknown } | null;
-        const code =
-          typeof b?.code === 'string' && b.code in FRIENDLY_ERRORS
-            ? (b.code as ProxyErrorCode)
-            : 'NETWORK';
-        setTest({
-          phase: 'fail',
-          code,
-          error: typeof b?.error === 'string' ? b.error : null,
-        });
+  // Esc closes; Tab cycles inside the panel (focus trap).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
         return;
       }
-      // Empty containers can't be mapped to a field — don't count them.
-      const fields = flattenJson(body).filter(
-        (f) => f.type !== 'object' && f.type !== 'array',
-      ).length;
-      const lists = findArrays(body).length;
-      resetSelection(); // new payload — old picks may no longer exist
-      setTest({ phase: 'ok', url: trimmed, data: body, fields, lists });
-    } catch {
-      if (seq !== seqRef.current) return;
-      setTest({ phase: 'fail', code: 'NETWORK', error: null });
-    }
-  }, [resetSelection]);
+      if (e.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const leaving = e.shiftKey
+        ? active === first || !panel.contains(active)
+        : active === last || !panel.contains(active);
+      if (leaving) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [close]);
 
-  /** Pick a list (table/chart) — resets row-level picks, seeds chart guesses. */
+  /* ---- validation ---- */
+
+  const errors = useMemo<Errors>(() => {
+    const e: Errors = {};
+    if (!title.trim()) e.name = 'Name the widget.';
+    if (!url.trim()) e.url = 'Enter an API URL.';
+    else if (test.phase === 'testing') e.url = 'Wait for the test to finish.';
+    else if (test.phase === 'idle') e.url = 'Run Test to check the connection.';
+    else if (test.phase === 'fail') e.url = 'The test failed — fix the URL.';
+    if (mode === 'card' && cardFields.length === 0) {
+      e.fields = 'Add at least one field.';
+    }
+    if (mode === 'table') {
+      if (!selectedList) e.fields = 'Pick a list first.';
+      else if (tableFields.length === 0) e.fields = 'Add at least one column.';
+    }
+    if (mode === 'chart') {
+      if (!selectedList) e.fields = 'Pick a list first.';
+      else if (!xField) e.fields = 'Pick the X-axis field.';
+      else if (
+        chartType === 'candle'
+          ? !(ohlc.open && ohlc.high && ohlc.low && ohlc.close)
+          : chartValues.length === 0
+      ) {
+        e.fields =
+          chartType === 'candle'
+            ? 'Map open, high, low and close.'
+            : 'Add at least one value field.';
+      }
+    }
+    if (!Number.isFinite(refreshSec) || refreshSec < MIN_REFRESH_SEC) {
+      e.refresh = `Use at least ${MIN_REFRESH_SEC} seconds.`;
+    }
+    return e;
+  }, [
+    title,
+    url,
+    test,
+    mode,
+    selectedList,
+    cardFields,
+    tableFields,
+    chartType,
+    chartValues,
+    ohlc,
+    xField,
+    refreshSec,
+  ]);
+  const firstError = errors.name ?? errors.url ?? errors.fields ?? errors.refresh;
+
+  /* ---- handlers ---- */
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    void runTest(url);
+  }
+
+  function pickExample(exampleUrl: string) {
+    setUrl(exampleUrl);
+    setTest({ phase: 'idle' });
+  }
+
+  /** Pick a list (table/chart) — resets row picks, seeds chart guesses. */
   function onSelectList(list: ArrayInfo | null) {
     setSelectedList(list);
     setTableFields([]);
@@ -170,7 +318,9 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
     setXField(null);
     setOhlc({});
     if (!list || test.phase !== 'ok') return;
-    const keys = columnsForRows(rowsForList(test.data, list)).map((c) => c.key);
+    const keys = columnsForRows(rowsAtPath(test.data, list.path)).map(
+      (c) => c.key,
+    );
     const g = guessOhlcFields(keys);
     setXField(g.date ?? null);
     setOhlc({ open: g.open, high: g.high, low: g.low, close: g.close });
@@ -178,9 +328,9 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
 
   function onChartType(kind: ChartKind) {
     setChartType(kind);
-    if (kind === 'candle' && columns.length) {
-      const g = guessOhlcFields(columns.map((c) => c.key));
+    if (kind === 'candle') {
       // Fill only unmapped slots — never clobber the user's picks.
+      const g = guessOhlcFields(columns.map((c) => c.key));
       setOhlc((o) => ({
         open: o.open ?? g.open,
         high: o.high ?? g.high,
@@ -206,9 +356,7 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
       ]);
     } else if (chartType === 'candle') {
       // In candle mode "+" fills the first unmapped OHLC slot.
-      const slot = (['open', 'high', 'low', 'close'] as const).find(
-        (s) => !ohlc[s],
-      );
+      const slot = OHLC_ROLES.find((s) => !ohlc[s]);
       if (slot) setOhlc((o) => ({ ...o, [slot]: key }));
     } else {
       if (chartValues.some((f) => f.path === key)) return;
@@ -219,50 +367,97 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
     }
   }
 
-  // A URL passed in from the hero/nav composer is pre-filled and tested once.
-  const didAutoTest = useRef(false);
-  useEffect(() => {
-    if (initialUrl && !didAutoTest.current) {
-      didAutoTest.current = true;
-      void runTest(initialUrl);
+  function save() {
+    setTried(true);
+    if (firstError) return;
+    const endpoint = url.trim();
+    const config: Partial<WidgetConfig> = {
+      title: title.trim(),
+      provider: detectProvider(endpoint),
+      endpoint,
+      params: {},
+      refreshIntervalSec: Math.max(MIN_REFRESH_SEC, Math.floor(refreshSec)),
+      card: mode === 'card' ? { kind: 'quote', symbols: [] } : undefined,
+      table:
+        mode === 'table'
+          ? { listPath: selectedList?.path, pageSize: 10, sortDir: 'asc' }
+          : undefined,
+      chart:
+        mode === 'chart'
+          ? {
+              kind: chartType,
+              interval: 'daily',
+              listPath: selectedList?.path,
+              xField: xField ?? undefined,
+              ohlc: chartType === 'candle' ? ohlc : undefined,
+            }
+          : undefined,
+      // Candle keeps its mapped columns as fields so config.fields stays
+      // meaningful; the role mapping itself lives in chart.ohlc.
+      fields:
+        mode === 'card'
+          ? cardFields
+          : mode === 'table'
+            ? tableFields
+            : chartType === 'candle'
+              ? OHLC_ROLES.filter((r) => ohlc[r]).map((r) => ({
+                  path: ohlc[r]!,
+                  label: r[0].toUpperCase() + r.slice(1),
+                  format: 'auto' as const,
+                }))
+              : chartValues,
+    };
+    if (editing) {
+      updateWidgetConfig(editing.id, config);
+      closeWidgetEditor();
+    } else {
+      addWidget(mode, { config });
+      closeAddWidget();
     }
-  }, [initialUrl, runTest]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeAddWidget();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [closeAddWidget]);
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    void runTest(url);
   }
 
-  function pickExample(exampleUrl: string) {
-    setUrl(exampleUrl);
-    setTest({ phase: 'idle' });
-  }
+  /* ---- derived render data ---- */
+
+  const columns =
+    test.phase === 'ok' && selectedList
+      ? columnsForRows(rowsAtPath(test.data, selectedList.path))
+      : [];
+
+  const addedKeys = useMemo(() => {
+    if (mode === 'card') return new Set(cardFields.map((f) => f.path));
+    if (mode === 'table') return new Set(tableFields.map((f) => f.path));
+    if (chartType === 'candle') {
+      return new Set(
+        OHLC_ROLES.map((r) => ohlc[r]).filter((k): k is string => !!k),
+      );
+    }
+    return new Set(chartValues.map((f) => f.path));
+  }, [mode, cardFields, tableFields, chartType, chartValues, ohlc]);
+
+  /* ---- render ---- */
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Add widget"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
-      onClick={closeAddWidget}
+      aria-label={isEdit ? 'Edit widget' : 'Add widget'}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px] sm:p-4"
+      onClick={close}
     >
       <div
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-subtle bg-surface p-6 shadow-xl transition-[max-width] ${
-          test.phase === 'ok' ? 'max-w-2xl' : 'max-w-md'
+        ref={panelRef}
+        className={`flex h-full w-full flex-col bg-surface transition-[max-width] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:border sm:border-subtle sm:shadow-xl ${
+          test.phase === 'ok' ? 'sm:max-w-2xl' : 'sm:max-w-md'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between">
-          <h2 className="font-display text-2xl">Add widget</h2>
+        <div className="flex items-start justify-between px-6 pt-6">
+          <h2 className="font-display text-2xl">
+            {isEdit ? 'Edit widget' : 'Add widget'}
+          </h2>
           <button
             type="button"
-            onClick={closeAddWidget}
+            onClick={close}
             aria-label="Close"
             className="flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-raised hover:text-ink"
           >
@@ -270,146 +465,230 @@ function ModalPanel({ initialUrl }: { initialUrl: string }) {
           </button>
         </div>
 
-        <label
-          htmlFor="widget-api-url"
-          className="mt-5 block text-xs font-medium uppercase tracking-wide text-muted"
-        >
-          API URL
-        </label>
-        <form onSubmit={onSubmit} className="mt-2 flex items-center gap-2">
-          <input
-            id="widget-api-url"
-            type="text"
-            inputMode="url"
-            autoFocus
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setTest({ phase: 'idle' });
-            }}
-            placeholder="https://api.example.com/quote?symbol=AAPL"
-            className="min-w-0 flex-1 rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent"
-          />
-          <button
-            type="submit"
-            disabled={!url.trim() || test.phase === 'testing'}
-            className="flex min-w-16 shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-strong disabled:pointer-events-none disabled:opacity-50"
+        {/* scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 pb-2">
+          <label
+            htmlFor="widget-api-url"
+            className="mt-5 block text-xs font-medium uppercase tracking-wide text-muted"
           >
-            {test.phase === 'testing' ? (
-              <Loader2 className="size-4 animate-spin" aria-label="Testing" />
-            ) : (
-              'Test'
-            )}
-          </button>
-        </form>
-
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-faint">Try</span>
-          {EXAMPLE_APIS.map((ex) => (
+            API URL
+          </label>
+          <form onSubmit={onSubmit} className="mt-2 flex items-center gap-2">
+            <input
+              id="widget-api-url"
+              type="text"
+              inputMode="url"
+              autoFocus
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setTest({ phase: 'idle' });
+              }}
+              placeholder="https://api.example.com/quote?symbol=AAPL"
+              className="min-w-0 flex-1 rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent"
+            />
             <button
-              key={ex.url}
-              type="button"
-              onClick={() => pickExample(ex.url)}
-              className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-strong hover:text-ink"
+              type="submit"
+              disabled={!url.trim() || test.phase === 'testing'}
+              className="flex min-w-16 shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-strong disabled:pointer-events-none disabled:opacity-50"
             >
-              {ex.label}
+              {test.phase === 'testing' ? (
+                <Loader2 className="size-4 animate-spin" aria-label="Testing" />
+              ) : (
+                'Test'
+              )}
             </button>
-          ))}
-        </div>
+          </form>
+          {tried && errors.url && (
+            <p className="mt-1.5 text-xs text-down">{errors.url}</p>
+          )}
 
-        {test.phase === 'ok' && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-up/30 bg-up/10 px-3 py-2 text-sm text-up">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>
-              Connected · {test.fields} {test.fields === 1 ? 'field' : 'fields'} found
-              {test.lists > 0 &&
-                ` · ${test.lists} ${test.lists === 1 ? 'list' : 'lists'} found`}
-            </span>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-faint">Try</span>
+            {EXAMPLE_APIS.map((ex) => (
+              <button
+                key={ex.url}
+                type="button"
+                onClick={() => pickExample(ex.url)}
+                className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-strong hover:text-ink"
+              >
+                {ex.label}
+              </button>
+            ))}
           </div>
-        )}
-        {test.phase === 'fail' && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <div>
-              <p>{FRIENDLY_ERRORS[test.code]}</p>
-              {test.error && test.error !== FRIENDLY_ERRORS[test.code] && (
-                <p className="mt-0.5 text-xs opacity-80">{test.error}</p>
+
+          {test.phase === 'ok' && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-up/30 bg-up/10 px-3 py-2 text-sm text-up">
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                Connected · {test.fields}{' '}
+                {test.fields === 1 ? 'field' : 'fields'} found
+                {test.lists > 0 &&
+                  ` · ${test.lists} ${test.lists === 1 ? 'list' : 'lists'} found`}
+              </span>
+            </div>
+          )}
+          {test.phase === 'fail' && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <div>
+                <p>{FRIENDLY_ERRORS[test.code]}</p>
+                {test.error && test.error !== FRIENDLY_ERRORS[test.code] && (
+                  <p className="mt-0.5 text-xs opacity-80">{test.error}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+            Display mode
+          </p>
+          <div
+            role="tablist"
+            aria-label="Display mode"
+            title={isEdit ? 'Display mode can’t change on an existing widget' : undefined}
+            className="mt-2 grid grid-cols-3 gap-1 rounded-full border border-subtle bg-raised p-1"
+          >
+            {MODE_TABS.map((t) => (
+              <button
+                key={t.type}
+                type="button"
+                role="tab"
+                aria-selected={mode === t.type}
+                disabled={isEdit}
+                onClick={() => setMode(t.type)}
+                className={`rounded-full px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${
+                  mode === t.type
+                    ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {test.phase === 'ok' && (
+            <>
+              <JsonExplorer
+                mode={mode}
+                data={test.data}
+                selectedList={selectedList}
+                onSelectList={onSelectList}
+                addedKeys={addedKeys}
+                onAdd={onPick}
+              />
+
+              <div className="mt-5 flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                  Selected fields
+                </p>
+                {tried && errors.fields && (
+                  <p className="text-xs normal-case text-down">{errors.fields}</p>
+                )}
+              </div>
+              {mode === 'card' && (
+                <FieldList fields={cardFields} onChange={setCardFields} />
+              )}
+              {mode === 'table' &&
+                (selectedList ? (
+                  <FieldList fields={tableFields} onChange={setTableFields} />
+                ) : (
+                  <p className="mt-2 text-xs text-faint">
+                    Pick a list above, then add its columns.
+                  </p>
+                ))}
+              {mode === 'chart' &&
+                (selectedList ? (
+                  <ChartFields
+                    columns={columns}
+                    chartType={chartType}
+                    onChartType={onChartType}
+                    xField={xField}
+                    onXField={setXField}
+                    values={chartValues}
+                    onValues={setChartValues}
+                    ohlc={ohlc}
+                    onOhlc={setOhlc}
+                  />
+                ) : (
+                  <p className="mt-2 text-xs text-faint">
+                    Pick a list above to map chart fields.
+                  </p>
+                ))}
+            </>
+          )}
+
+          <div className="mt-6 flex items-start gap-3 pb-4">
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="widget-name"
+                className="block text-xs font-medium uppercase tracking-wide text-muted"
+              >
+                Name
+              </label>
+              <input
+                id="widget-name"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    save();
+                  }
+                }}
+                placeholder="e.g. AAPL quote"
+                className="mt-2 w-full rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent"
+              />
+              {tried && errors.name && (
+                <p className="mt-1 text-xs text-down">{errors.name}</p>
+              )}
+            </div>
+            <div className="w-28 shrink-0">
+              <label
+                htmlFor="widget-refresh"
+                className="block text-xs font-medium uppercase tracking-wide text-muted"
+              >
+                Refresh (s)
+              </label>
+              <input
+                id="widget-refresh"
+                type="number"
+                min={MIN_REFRESH_SEC}
+                value={refreshSec}
+                onChange={(e) => setRefreshSec(Number(e.target.value))}
+                className="mt-2 w-full rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
+              />
+              {tried && errors.refresh && (
+                <p className="mt-1 text-xs text-down">{errors.refresh}</p>
               )}
             </div>
           </div>
-        )}
-
-        <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
-          Display mode
-        </p>
-        <div
-          role="tablist"
-          aria-label="Display mode"
-          className="mt-2 grid grid-cols-3 gap-1 rounded-full border border-subtle bg-raised p-1"
-        >
-          {MODE_TABS.map((t) => (
-            <button
-              key={t.type}
-              type="button"
-              role="tab"
-              aria-selected={mode === t.type}
-              onClick={() => setMode(t.type)}
-              className={`rounded-full px-3 py-2 text-sm font-medium transition-colors ${
-                mode === t.type
-                  ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
-                  : 'text-muted hover:text-ink'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
         </div>
 
-        {test.phase === 'ok' && (
-          <>
-            <JsonExplorer
-              mode={mode}
-              data={test.data}
-              selectedList={selectedList}
-              onSelectList={onSelectList}
-              addedKeys={addedKeys}
-              onAdd={onPick}
-            />
-
-            <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
-              Selected fields
-            </p>
-            {mode === 'card' && (
-              <FieldList fields={cardFields} onChange={setCardFields} />
+        {/* sticky footer */}
+        <div className="shrink-0 border-t border-subtle bg-surface px-6 py-4 sm:rounded-b-2xl">
+          <div className="flex items-center justify-end gap-2">
+            {tried && firstError && (
+              <p className="mr-auto truncate text-xs text-down">{firstError}</p>
             )}
-            {mode === 'table' &&
-              (selectedList ? (
-                <FieldList fields={tableFields} onChange={setTableFields} />
-              ) : (
-                <p className="mt-2 text-xs text-faint">
-                  Pick a list above, then add its columns.
-                </p>
-              ))}
-            {mode === 'chart' &&
-              (selectedList ? (
-                <ChartFields
-                  columns={columns}
-                  chartType={chartType}
-                  onChartType={onChartType}
-                  xField={xField}
-                  onXField={setXField}
-                  values={chartValues}
-                  onValues={setChartValues}
-                  ohlc={ohlc}
-                  onOhlc={setOhlc}
-                />
-              ) : (
-                <p className="mt-2 text-xs text-faint">
-                  Pick a list above to map chart fields.
-                </p>
-              ))}
-          </>
-        )}
+            <button
+              type="button"
+              onClick={close}
+              className="rounded-lg px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-raised hover:text-ink"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover"
+            >
+              {isEdit ? 'Save changes' : 'Add widget'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

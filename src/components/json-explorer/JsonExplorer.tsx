@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, Plus, Search } from 'lucide-react';
 import { findArrays, flattenJson, type ArrayInfo } from '@/lib/jsonPaths';
-import { columnsForRows, rowsForList } from '@/lib/widgetFields';
+import { columnsForRows, rowsAtPath } from '@/lib/widgetFields';
 import type { WidgetType } from '@/types/widget';
 
 const RAW_PREVIEW_LINES = 50;
@@ -57,13 +57,14 @@ export function JsonExplorer({
       ),
     [leaves, q, arraysOnly],
   );
-  const columns = useMemo(
+  const rows = useMemo(
     () =>
       mode !== 'card' && selectedList
-        ? columnsForRows(rowsForList(data, selectedList))
+        ? rowsAtPath(data, selectedList.path)
         : [],
     [mode, data, selectedList],
   );
+  const columns = useMemo(() => columnsForRows(rows), [rows]);
   const rawJson = useMemo(() => {
     const text = JSON.stringify(data, null, 2) ?? '';
     const lines = text.split('\n');
@@ -181,7 +182,7 @@ export function JsonExplorer({
               {selectedList.path}
             </span>
             <span className="shrink-0 text-[11px] text-faint">
-              {selectedList.count} {selectedList.count === 1 ? 'row' : 'rows'}
+              {rows.length} {rows.length === 1 ? 'row' : 'rows'}
             </span>
           </div>
           <ul className="mt-2 max-h-52 divide-y divide-subtle overflow-y-auto rounded-lg border border-subtle">
