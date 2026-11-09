@@ -29,6 +29,8 @@ export interface WidgetDataResult {
   errorCode: ProxyErrorCode | null;
   /** ms timestamp of the last successful fetch. */
   lastUpdated: number | null;
+  /** True while any request for this URL is in flight (incl. refetches). */
+  isFetching: boolean;
   /** Re-fetch now and restart the poll timer. */
   refetch: () => void;
 }
@@ -149,6 +151,7 @@ function request(url: string): Promise<void> {
       notify(e);
     });
   e.inflight = p;
+  notify(e); // flip isFetching true immediately — settles notify again
   return p;
 }
 
@@ -258,6 +261,7 @@ export function useWidgetData(
     error: e?.error ?? null,
     errorCode: e?.code ?? null,
     lastUpdated: e?.at ?? null,
+    isFetching: e ? e.inflight !== null : false,
     refetch,
   };
 }

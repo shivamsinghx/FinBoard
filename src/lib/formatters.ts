@@ -29,7 +29,7 @@ const NUMERIC_RE = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
  * whitespace, a currency symbol, a trailing `%`, or accounting-style
  * parentheses for negatives. Anything else returns null.
  */
-function toNumber(value: unknown): number | null {
+export function toNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value !== 'string') return null;
   let s = value.trim();
@@ -102,6 +102,15 @@ function dateIntl(d: Date, hasTime: boolean, locale: string): string {
  * - `percent` — the value is already in percent units ("5.32" or
  *   "5.32%" → `5.32%`); it is NOT multiplied by 100.
  */
+/** "30s" / "5m" / "1.5h" / "manual" (0 or disabled refresh). */
+export function formatInterval(sec: number): string {
+  if (!Number.isFinite(sec) || sec <= 0) return 'manual';
+  if (sec < 60) return `${Math.round(sec)}s`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m`;
+  const h = sec / 3600;
+  return `${Math.round(h * 10) / 10}h`;
+}
+
 export function formatValue(
   value: unknown,
   format: DataFormat = 'auto',

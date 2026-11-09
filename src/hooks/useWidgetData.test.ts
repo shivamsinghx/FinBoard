@@ -123,13 +123,16 @@ describe('request() — error handling', () => {
 });
 
 describe('subscribers', () => {
-  it('notifies listeners and bumps the version on settle', async () => {
+  it('notifies on start and settle, and flips inflight in between', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
     const e = entryFor(URL_A);
     const v0 = e.version;
-    const seen: number[] = [];
-    e.listeners.add(() => seen.push(e.version));
+    const seen: { version: number; inflight: boolean }[] = [];
+    e.listeners.add(() => seen.push({ version: e.version, inflight: e.inflight !== null }));
     await request(URL_A);
-    expect(seen).toEqual([v0 + 1]);
+    expect(seen).toEqual([
+      { version: v0 + 1, inflight: true },
+      { version: v0 + 2, inflight: false },
+    ]);
   });
 });

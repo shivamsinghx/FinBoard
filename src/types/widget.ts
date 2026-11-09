@@ -50,6 +50,8 @@ export interface CardSettings {
   kind: CardKind;
   /** Symbols this card tracks (watchlist/quote cards). */
   symbols: string[];
+  /** Path to the row list for watchlist/gainers/losers cards. */
+  listPath?: string;
 }
 
 export interface TableSettings {

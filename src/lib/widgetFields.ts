@@ -103,7 +103,7 @@ export type OhlcField = 'date' | 'open' | 'high' | 'low' | 'close' | 'volume';
 export type OhlcGuess = Partial<Record<OhlcField, string>>;
 
 /** "1. open" / "05_price" → "open"; "openPrice" → "openprice". */
-function normalizeKey(key: string): string {
+export function normalizeKey(key: string): string {
   return key
     .toLowerCase()
     .replace(/^\d+[\s._-]*/, '') // Alpha Vantage's numbered prefixes

@@ -19,6 +19,7 @@ import {
   rowsAtPath,
   type OhlcGuess,
 } from '@/lib/widgetFields';
+import { FRIENDLY_ERRORS } from '@/lib/proxyErrors';
 import type { ProxyErrorCode } from '@/types/api';
 import type {
   ApiProvider,
@@ -55,16 +56,6 @@ const EXAMPLE_APIS: { label: string; url: string }[] = [
     url: 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo',
   },
 ];
-
-const FRIENDLY_ERRORS: Record<ProxyErrorCode, string> = {
-  RATE_LIMIT: 'API limit reached, try again in a minute.',
-  INVALID_KEY: 'API key was rejected — check the key in the URL or your .env.',
-  NOT_FOUND: 'Endpoint not found — check the URL path.',
-  TIMEOUT: 'The API took too long to respond — try again.',
-  NETWORK: 'Couldn’t reach the API — check the URL and your connection.',
-  BAD_RESPONSE: 'The API returned an unexpected response.',
-  INVALID_URL: 'That URL isn’t allowed — it must be a public http(s) address.',
-};
 
 const OHLC_ROLES = ['open', 'high', 'low', 'close'] as const;
 const MIN_REFRESH_SEC = 10;
