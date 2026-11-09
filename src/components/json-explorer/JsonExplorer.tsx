@@ -130,40 +130,7 @@ export function JsonExplorer({
           )}
         </>
       ) : !selectedList ? (
-        <>
-          <ul className="mt-2 max-h-52 divide-y divide-subtle overflow-y-auto rounded-lg border border-subtle">
-            {lists.map((l) => (
-              <li key={l.path}>
-                <button
-                  type="button"
-                  onClick={() => onSelectList(l)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-raised"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-xs text-ink">
-                      {l.path}
-                    </p>
-                    <p className="truncate text-[11px] text-faint">
-                      {l.count} {l.count === 1 ? 'row' : 'rows'}
-                      {l.keys.length > 0 && ` · ${l.keys.slice(0, 5).join(', ')}`}
-                      {l.keys.length > 5 && '…'}
-                    </p>
-                  </div>
-                  {l.kind === 'dateMap' && (
-                    <span className="shrink-0 rounded border border-subtle bg-raised px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-faint">
-                      dates
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-            {lists.length === 0 && (
-              <li className="px-3 py-3 text-center text-xs text-faint">
-                No lists found — Card mode can still use any field.
-              </li>
-            )}
-          </ul>
-        </>
+        <ListPicker lists={lists} onSelect={onSelectList} />
       ) : (
         <>
           <div className="mt-2 flex items-center gap-2">
@@ -214,6 +181,52 @@ export function JsonExplorer({
         </pre>
       </details>
     </div>
+  );
+}
+
+/**
+ * The "pick a list" step — arrays and date-keyed maps found in the
+ * payload. Exported so card-type pickers (movers/watchlist) can use
+ * it outside the full explorer.
+ */
+export function ListPicker({
+  lists,
+  onSelect,
+}: {
+  lists: ArrayInfo[];
+  onSelect: (list: ArrayInfo | null) => void;
+}) {
+  return (
+    <ul className="mt-2 max-h-52 divide-y divide-subtle overflow-y-auto rounded-lg border border-subtle">
+      {lists.map((l) => (
+        <li key={l.path}>
+          <button
+            type="button"
+            onClick={() => onSelect(l)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-raised"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-mono text-xs text-ink">{l.path}</p>
+              <p className="truncate text-[11px] text-faint">
+                {l.count} {l.count === 1 ? 'row' : 'rows'}
+                {l.keys.length > 0 && ` · ${l.keys.slice(0, 5).join(', ')}`}
+                {l.keys.length > 5 && '…'}
+              </p>
+            </div>
+            {l.kind === 'dateMap' && (
+              <span className="shrink-0 rounded border border-subtle bg-raised px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-faint">
+                dates
+              </span>
+            )}
+          </button>
+        </li>
+      ))}
+      {lists.length === 0 && (
+        <li className="px-3 py-3 text-center text-xs text-faint">
+          No lists found — Card mode can still use any field.
+        </li>
+      )}
+    </ul>
   );
 }
 

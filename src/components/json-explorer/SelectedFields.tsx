@@ -2,7 +2,12 @@
 
 import { ArrowDown, ArrowUp, X } from 'lucide-react';
 import type { ColumnInfo, OhlcGuess } from '@/lib/widgetFields';
-import type { ChartKind, DataFormat, FieldMapping } from '@/types/widget';
+import type {
+  CardColumnMap,
+  ChartKind,
+  DataFormat,
+  FieldMapping,
+} from '@/types/widget';
 
 const FORMAT_OPTIONS: { value: DataFormat; label: string }[] = [
   { value: 'auto', label: 'auto' },
@@ -208,6 +213,62 @@ export function ChartFields({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* CardColumnFields — name/price/change mapping for list-style cards    */
+/* ------------------------------------------------------------------ */
+
+const CARD_COLUMN_ROLES = [
+  { key: 'name', label: 'Name column' },
+  { key: 'price', label: 'Price column' },
+  { key: 'change', label: 'Change % column' },
+] as const;
+
+/**
+ * Three selects mapping card roles to column keys — used by
+ * movers/watchlist card types. With `nameIsSymbol` the Name select is
+ * pinned: rows display the symbol itself (symbol-based watchlists).
+ */
+export function CardColumnFields({
+  options,
+  value,
+  onChange,
+  nameIsSymbol = false,
+}: {
+  options: string[];
+  value: CardColumnMap;
+  onChange: (map: CardColumnMap) => void;
+  nameIsSymbol?: boolean;
+}) {
+  return (
+    <div className="mt-2 grid grid-cols-3 gap-2">
+      {CARD_COLUMN_ROLES.map(({ key, label }) => (
+        <label key={key} className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
+            {label}
+          </span>
+          <select
+            value={key === 'name' && nameIsSymbol ? '' : (value[key] ?? '')}
+            disabled={key === 'name' && nameIsSymbol}
+            onChange={(e) =>
+              onChange({ ...value, [key]: e.target.value || undefined })
+            }
+            className="mt-1 w-full rounded-md border border-subtle bg-raised px-2 py-1.5 text-xs text-ink outline-none focus:border-accent disabled:opacity-60"
+          >
+            <option value="">
+              {key === 'name' && nameIsSymbol ? '— symbol —' : '— none —'}
+            </option>
+            {options.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
     </div>
   );
 }

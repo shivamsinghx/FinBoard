@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { formatValue, toNumber } from '@/lib/formatters';
 import { getByPath } from '@/lib/jsonPaths';
-import { guessListColumns, looksLikeChange } from '@/lib/cardDisplay';
+import { guessListColumns, looksLikeChange, urlWithSymbol } from '@/lib/cardDisplay';
 import { rowsAtPath } from '@/lib/widgetFields';
-import type { CardKind, FieldMapping, WidgetInstance } from '@/types/widget';
+import type { CardColumnMap, CardKind, FieldMapping, WidgetInstance } from '@/types/widget';
 import { WidgetShell } from './WidgetShell';
 
 const LIST_KINDS: CardKind[] = ['watchlist', 'gainers', 'losers'];
@@ -23,12 +23,18 @@ export function CardWidget({ widget }: { widget: WidgetInstance }) {
   const query = useWidgetData(cfg.endpoint || null, cfg.refreshIntervalSec);
   const kind = cfg.card?.kind ?? 'quote';
   const isList = LIST_KINDS.includes(kind) && !!cfg.card?.listPath;
+  const isSymbols =
+    kind === 'watchlist' &&
+    !cfg.card?.listPath &&
+    (cfg.card?.symbols?.length ?? 0) > 0;
   const rows = isList ? rowsAtPath(query.data, cfg.card!.listPath!) : [];
 
   const empty = isList
     ? rows.length === 0
-    : cfg.fields.length === 0 ||
-      cfg.fields.every((f) => getByPath(query.data, f.path) === undefined);
+    : isSymbols
+      ? false
+      : cfg.fields.length === 0 ||
+        cfg.fields.every((f) => getByPath(query.data, f.path) === undefined);
 
   // Flash values green/red for ~1s when they move between refreshes.
   // setState goes inside the timeouts (not the effect body) so the lint
@@ -57,7 +63,9 @@ export function CardWidget({ widget }: { widget: WidgetInstance }) {
   return (
     <WidgetShell widget={widget} query={query} empty={empty}>
       {isList ? (
-        <ListRows rows={rows} kind={kind} />
+        <ListRows rows={rows} kind={kind} columns={cfg.card?.columns} />
+      ) : isSymbols ? (
+        <SymbolRows widget={widget} />
       ) : cfg.fields.length <= 2 ? (
         <HeroFields fields={cfg.fields} data={query.data} flash={flash} />
       ) : (
@@ -167,14 +175,18 @@ function FieldValue({
 function ListRows({
   rows,
   kind,
+  columns,
 }: {
   rows: Record<string, unknown>[];
   kind: CardKind;
+  columns?: CardColumnMap;
 }) {
-  const cols = guessListColumns(rows[0] ? Object.keys(rows[0]) : []);
-  const nameKey = cols.name ?? (rows[0] ? Object.keys(rows[0])[0] : '');
-  const priceKey = cols.price;
-  const changeKey = cols.change;
+  // Saved mapping wins; runtime guesses fill whatever wasn't mapped.
+  const guessed = guessListColumns(rows[0] ? Object.keys(rows[0]) : []);
+  const nameKey =
+    columns?.name ?? guessed.name ?? (rows[0] ? Object.keys(rows[0])[0] : '');
+  const priceKey = columns?.price ?? guessed.price;
+  const changeKey = columns?.change ?? guessed.change;
 
   const sorted =
     kind === 'watchlist' || !changeKey
@@ -213,5 +225,94 @@ function ListRows({
       })}
       {sorted.length === 0 && <li className="py-2 text-xs text-faint">No rows.</li>}
     </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Symbol-based watchlist — one quote request per symbol                */
+/* ------------------------------------------------------------------ */
+
+function SymbolRows({ widget }: { widget: WidgetInstance }) {
+  const { endpoint, refreshIntervalSec, card } = widget.config;
+  const symbols = card?.symbols ?? [];
+  return (
+    <ul className="divide-y divide-subtle/60">
+      {symbols.map((s) => (
+        <SymbolRow
+          key={s}
+          symbol={s}
+          endpoint={endpoint}
+          interval={refreshIntervalSec}
+          columns={card?.columns}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * A single watchlist row backed by its own useWidgetData call — the
+ * shared cache dedupes identical quote URLs, and each row polls on the
+ * widget's interval.
+ */
+function SymbolRow({
+  symbol,
+  endpoint,
+  interval,
+  columns,
+}: {
+  symbol: string;
+  endpoint: string;
+  interval: number;
+  columns?: CardColumnMap;
+}) {
+  const q = useWidgetData(urlWithSymbol(endpoint, symbol), interval);
+  const rec =
+    q.data && typeof q.data === 'object'
+      ? (q.data as Record<string, unknown>)
+      : null;
+
+  if (!rec) {
+    const failed = q.status === 'error';
+    return (
+      <li className="flex items-baseline gap-2 py-1.5 text-sm">
+        <span className="min-w-0 flex-1 truncate font-medium">{symbol}</span>
+        {failed ? (
+          <span className="shrink-0 text-xs text-faint" title={q.error ?? ''}>
+            unavailable
+          </span>
+        ) : (
+          <span className="h-3 w-16 animate-pulse rounded bg-raised" />
+        )}
+      </li>
+    );
+  }
+
+  const guessed = guessListColumns(Object.keys(rec));
+  const priceKey = columns?.price ?? guessed.price;
+  const changeKey = columns?.change ?? guessed.change;
+  const cn = changeKey ? toNumber(getByPath(rec, changeKey)) : null;
+
+  return (
+    <li className="flex items-baseline gap-2 py-1.5 text-sm">
+      <span className="min-w-0 flex-1 truncate font-medium">{symbol}</span>
+      {priceKey && (
+        <span className="shrink-0 tabular-nums text-muted">
+          {formatValue(getByPath(rec, priceKey), 'auto')}
+        </span>
+      )}
+      {changeKey && (
+        <span
+          className={`w-16 shrink-0 text-right tabular-nums ${
+            cn === null ? 'text-muted' : cn > 0 ? 'text-up' : cn < 0 ? 'text-down' : 'text-muted'
+          }`}
+        >
+          {cn !== null && cn !== 0 && (
+            <span className="mr-0.5 text-[0.8em]">{cn > 0 ? '▲' : '▼'}</span>
+          )}
+          {formatValue(getByPath(rec, changeKey), 'percent')}
+        </span>
+      )}
+    </li>
   );
 }

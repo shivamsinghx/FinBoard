@@ -8,7 +8,7 @@ import {
   useState,
   type FormEvent,
 } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2, X } from 'lucide-react';
 import { selectEditingWidget, useDashboardStore } from '@/store/dashboardStore';
 import { findArrays, flattenJson, type ArrayInfo } from '@/lib/jsonPaths';
 import {
@@ -19,23 +19,47 @@ import {
   rowsAtPath,
   type OhlcGuess,
 } from '@/lib/widgetFields';
+import { guessListColumns, suggestPerformanceFields } from '@/lib/cardDisplay';
 import { FRIENDLY_ERRORS } from '@/lib/proxyErrors';
 import type { ProxyErrorCode } from '@/types/api';
 import type {
   ApiProvider,
+  CardColumnMap,
+  CardKind,
   ChartKind,
   FieldMapping,
   WidgetConfig,
   WidgetInstance,
   WidgetType,
 } from '@/types/widget';
-import { JsonExplorer } from '@/components/json-explorer/JsonExplorer';
-import { ChartFields, FieldList } from '@/components/json-explorer/SelectedFields';
+import { JsonExplorer, ListPicker } from '@/components/json-explorer/JsonExplorer';
+import {
+  CardColumnFields,
+  ChartFields,
+  FieldList,
+} from '@/components/json-explorer/SelectedFields';
+import { SymbolsInput } from '@/components/json-explorer/SymbolsInput';
 
 const MODE_TABS: { type: WidgetType; label: string }[] = [
   { type: 'card', label: 'Card' },
   { type: 'table', label: 'Table' },
   { type: 'chart', label: 'Chart' },
+];
+
+/** Card sub-types shown by the "Card type" selector. */
+type CardType = 'financial' | 'performance' | 'movers' | 'watchlist';
+type WatchlistSource = 'list' | 'symbols';
+
+const CARD_TYPES: { value: CardType; label: string }[] = [
+  { value: 'financial', label: 'Financial data' },
+  { value: 'performance', label: 'Performance' },
+  { value: 'movers', label: 'Gainers / losers' },
+  { value: 'watchlist', label: 'Watchlist' },
+];
+
+const WATCHLIST_SOURCES: { value: WatchlistSource; label: string }[] = [
+  { value: 'list', label: 'From list' },
+  { value: 'symbols', label: 'From symbols' },
 ];
 
 const EXAMPLE_APIS: { label: string; url: string }[] = [
@@ -48,12 +72,20 @@ const EXAMPLE_APIS: { label: string; url: string }[] = [
     url: 'https://finnhub.io/api/v1/quote?symbol=AAPL',
   },
   {
+    label: 'Finnhub · AAPL metrics',
+    url: 'https://finnhub.io/api/v1/stock/metric?symbol=AAPL&metric=all',
+  },
+  {
     label: 'Finnhub · AAPL candles',
     url: 'https://finnhub.io/api/v1/stock/candle?symbol=AAPL&resolution=D&from=1704067200&to=1735689600',
   },
   {
     label: 'Alpha Vantage · IBM daily',
     url: 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo',
+  },
+  {
+    label: 'Alpha Vantage · Gainers & losers',
+    url: 'https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=demo',
   },
 ];
 
@@ -129,10 +161,32 @@ function ModalPanel({
   /* ---- field selection state (prefilled from the widget when editing) ---- */
   const [selectedList, setSelectedList] = useState<ArrayInfo | null>(() => {
     const lp =
-      editing?.config.table?.listPath ?? editing?.config.chart?.listPath;
+      editing?.config.table?.listPath ??
+      editing?.config.chart?.listPath ??
+      editing?.config.card?.listPath;
     // Only the path is persisted — kind/count/keys are derived from data.
     return lp ? { path: lp, kind: 'array', count: 0, keys: [] } : null;
   });
+  /* ---- card-type state (prefilled from card settings when editing) ---- */
+  const [cardType, setCardType] = useState<CardType>(() => {
+    const k = editing?.config.card?.kind;
+    if (k === 'performance') return 'performance';
+    if (k === 'gainers' || k === 'losers') return 'movers';
+    if (k === 'watchlist') return 'watchlist';
+    return 'financial';
+  });
+  const [moversDir, setMoversDir] = useState<'gainers' | 'losers'>(
+    editing?.config.card?.kind === 'losers' ? 'losers' : 'gainers',
+  );
+  const [watchlistSource, setWatchlistSource] = useState<WatchlistSource>(
+    editing?.config.card?.listPath ? 'list' : 'symbols',
+  );
+  const [symbols, setSymbols] = useState<string[]>(
+    editing?.config.card?.symbols ?? [],
+  );
+  const [cardColumns, setCardColumns] = useState<CardColumnMap>(
+    editing?.config.card?.columns ?? {},
+  );
   const [cardFields, setCardFields] = useState<FieldMapping[]>(
     editing?.type === 'card' ? editing.config.fields : [],
   );
@@ -159,6 +213,7 @@ function ModalPanel({
     setChartValues([]);
     setXField(null);
     setOhlc({});
+    setCardColumns({});
   }, []);
 
   const runTest = useCallback(
@@ -191,14 +246,23 @@ function ModalPanel({
           (f) => f.type !== 'object' && f.type !== 'array',
         ).length;
         const lists = findArrays(body).length;
-        resetSelection(); // new payload — old picks may no longer exist
+        // New payload — old picks may no longer exist. But when editing,
+        // re-testing the widget's own endpoint keeps its selections.
+        if (trimmed !== editing?.config.endpoint) resetSelection();
+        if (
+          mode === 'card' &&
+          cardType === 'watchlist' &&
+          watchlistSource === 'symbols'
+        ) {
+          seedSymbolColumns(body);
+        }
         setTest({ phase: 'ok', url: trimmed, data: body, fields, lists });
       } catch {
         if (seq !== seqRef.current) return;
         setTest({ phase: 'fail', code: 'NETWORK', error: null });
       }
     },
-    [resetSelection],
+    [resetSelection, editing, mode, cardType, watchlistSource],
   );
 
   // A URL (prefill or a saved widget's endpoint) is tested once on open.
@@ -248,8 +312,17 @@ function ModalPanel({
     else if (test.phase === 'testing') e.url = 'Wait for the test to finish.';
     else if (test.phase === 'idle') e.url = 'Run Test to check the connection.';
     else if (test.phase === 'fail') e.url = 'The test failed — fix the URL.';
-    if (mode === 'card' && cardFields.length === 0) {
-      e.fields = 'Add at least one field.';
+    if (mode === 'card') {
+      const listBack = cardType === 'movers' || watchlistSource === 'list';
+      if (cardType === 'financial' || cardType === 'performance') {
+        if (cardFields.length === 0) e.fields = 'Add at least one field.';
+      } else if (listBack && !selectedList) {
+        e.fields = 'Pick a list first.';
+      } else if (!listBack && symbols.length === 0) {
+        e.fields = 'Add at least one symbol.';
+      } else if (!cardColumns.price && !cardColumns.change) {
+        e.fields = 'Map at least a price or change column.';
+      }
     }
     if (mode === 'table') {
       if (!selectedList) e.fields = 'Pick a list first.';
@@ -286,6 +359,10 @@ function ModalPanel({
     ohlc,
     xField,
     refreshSec,
+    cardType,
+    watchlistSource,
+    symbols,
+    cardColumns,
   ]);
   const firstError = errors.name ?? errors.url ?? errors.fields ?? errors.refresh;
 
@@ -301,13 +378,14 @@ function ModalPanel({
     setTest({ phase: 'idle' });
   }
 
-  /** Pick a list (table/chart) — resets row picks, seeds chart guesses. */
+  /** Pick a list — resets row picks, seeds chart + card-column guesses. */
   function onSelectList(list: ArrayInfo | null) {
     setSelectedList(list);
     setTableFields([]);
     setChartValues([]);
     setXField(null);
     setOhlc({});
+    setCardColumns({});
     if (!list || test.phase !== 'ok') return;
     const keys = columnsForRows(rowsAtPath(test.data, list.path)).map(
       (c) => c.key,
@@ -315,6 +393,37 @@ function ModalPanel({
     const g = guessOhlcFields(keys);
     setXField(g.date ?? null);
     setOhlc({ open: g.open, high: g.high, low: g.low, close: g.close });
+    if (mode === 'card') setCardColumns(guessListColumns(keys));
+  }
+
+  /**
+   * Seed the quote-field column map for symbol watchlists — only when
+   * nothing is mapped yet, so user edits and edit-mode prefill survive.
+   * Called from the three events that can need it (test-ok, card-type
+   * switch, source switch).
+   */
+  function seedSymbolColumns(data: unknown) {
+    setCardColumns((c) =>
+      c.name || c.price || c.change
+        ? c
+        : guessListColumns(flattenJson(data).map((f) => f.path)),
+    );
+  }
+
+  /** Switch card type or watchlist source — column guesses go stale. */
+  function onCardType(t: CardType) {
+    setCardType(t);
+    setCardColumns({});
+    if (t === 'watchlist' && watchlistSource === 'symbols' && test.phase === 'ok') {
+      seedSymbolColumns(test.data);
+    }
+  }
+  function onWatchlistSource(src: WatchlistSource) {
+    setWatchlistSource(src);
+    setCardColumns({});
+    if (src === 'symbols' && cardType === 'watchlist' && test.phase === 'ok') {
+      seedSymbolColumns(test.data);
+    }
   }
 
   function onChartType(kind: ChartKind) {
@@ -362,13 +471,34 @@ function ModalPanel({
     setTried(true);
     if (firstError) return;
     const endpoint = url.trim();
+    const cardKind: CardKind =
+      cardType === 'performance'
+        ? 'performance'
+        : cardType === 'movers'
+          ? moversDir
+          : cardType === 'watchlist'
+            ? 'watchlist'
+            : 'financials';
     const config: Partial<WidgetConfig> = {
       title: title.trim(),
       provider: detectProvider(endpoint),
       endpoint,
       params: {},
       refreshIntervalSec: Math.max(MIN_REFRESH_SEC, Math.floor(refreshSec)),
-      card: mode === 'card' ? { kind: 'quote', symbols: [] } : undefined,
+      card:
+        mode === 'card'
+          ? {
+              kind: cardKind,
+              symbols: cardSymbolsMode ? symbols : [],
+              listPath: cardListMode ? selectedList?.path : undefined,
+              columns:
+                cardListMode || cardSymbolsMode
+                  ? (Object.fromEntries(
+                      Object.entries(cardColumns).filter(([, v]) => !!v),
+                    ) as CardColumnMap)
+                  : undefined,
+            }
+          : undefined,
       table:
         mode === 'table'
           ? { listPath: selectedList?.path, pageSize: 10, sortDir: 'asc' }
@@ -387,7 +517,9 @@ function ModalPanel({
       // meaningful; the role mapping itself lives in chart.ohlc.
       fields:
         mode === 'card'
-          ? cardFields
+          ? cardFieldsMode
+            ? cardFields
+            : []
           : mode === 'table'
             ? tableFields
             : chartType === 'candle'
@@ -409,10 +541,43 @@ function ModalPanel({
 
   /* ---- derived render data ---- */
 
-  const columns =
+  /** Card-type → which picker UI is active. */
+  const cardFieldsMode =
+    mode === 'card' &&
+    (cardType === 'financial' || cardType === 'performance');
+  const cardListMode =
+    mode === 'card' &&
+    (cardType === 'movers' ||
+      (cardType === 'watchlist' && watchlistSource === 'list'));
+  const cardSymbolsMode =
+    mode === 'card' && cardType === 'watchlist' && watchlistSource === 'symbols';
+
+  const listRows =
     test.phase === 'ok' && selectedList
-      ? columnsForRows(rowsAtPath(test.data, selectedList.path))
+      ? rowsAtPath(test.data, selectedList.path)
       : [];
+  const columns = columnsForRows(listRows);
+
+  const lists = useMemo(
+    () => (test.phase === 'ok' && cardListMode ? findArrays(test.data) : []),
+    [test, cardListMode],
+  );
+  const leafKeys = useMemo(
+    () =>
+      test.phase === 'ok'
+        ? flattenJson(test.data)
+            .filter((f) => f.type !== 'object' && f.type !== 'array')
+            .map((f) => f.path)
+        : [],
+    [test],
+  );
+  const suggestedPaths = useMemo(
+    () =>
+      test.phase === 'ok' && cardType === 'performance'
+        ? suggestPerformanceFields(leafKeys.map((path) => ({ path })))
+        : [],
+    [test, cardType, leafKeys],
+  );
 
   const addedKeys = useMemo(() => {
     if (mode === 'card') return new Set(cardFields.map((f) => f.path));
@@ -559,16 +724,138 @@ function ModalPanel({
             ))}
           </div>
 
+          {mode === 'card' && (
+            <>
+              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+                Card type
+              </p>
+              <div
+                role="radiogroup"
+                aria-label="Card type"
+                className="mt-2 grid grid-cols-4 gap-1 rounded-full border border-subtle bg-raised p-1"
+              >
+                {CARD_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={cardType === t.value}
+                    onClick={() => onCardType(t.value)}
+                    className={`rounded-full px-2 py-2 text-xs font-medium transition-colors ${
+                      cardType === t.value
+                        ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
+                        : 'text-muted hover:text-ink'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {cardType === 'movers' && (
+                <div className="mt-3 flex items-center gap-2.5">
+                  <span className="text-xs text-muted">Show</span>
+                  <PillRow
+                    ariaLabel="Movers direction"
+                    options={[
+                      { value: 'gainers', label: 'Gainers' },
+                      { value: 'losers', label: 'Losers' },
+                    ]}
+                    value={moversDir}
+                    onChange={setMoversDir}
+                  />
+                  <span className="text-[11px] text-faint">
+                    {moversDir === 'gainers' ? 'biggest gains first' : 'biggest losses first'}
+                  </span>
+                </div>
+              )}
+
+              {cardType === 'watchlist' && (
+                <div className="mt-3 flex items-center gap-2.5">
+                  <span className="text-xs text-muted">Source</span>
+                  <PillRow
+                    ariaLabel="Watchlist source"
+                    options={WATCHLIST_SOURCES}
+                    value={watchlistSource}
+                    onChange={onWatchlistSource}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
           {test.phase === 'ok' && (
             <>
-              <JsonExplorer
-                mode={mode}
-                data={test.data}
-                selectedList={selectedList}
-                onSelectList={onSelectList}
-                addedKeys={addedKeys}
-                onAdd={onPick}
-              />
+              {mode === 'card' &&
+                cardType === 'performance' &&
+                suggestedPaths.length > 0 && (
+                  <div className="mt-5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-faint">Suggested</span>
+                    {suggestedPaths.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        disabled={addedKeys.has(p)}
+                        onClick={() => onPick(p)}
+                        title={p}
+                        className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        {prettifyKey(lastPathSegment(p))}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+              {cardSymbolsMode ? (
+                <>
+                  <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+                    Watchlist symbols
+                  </p>
+                  <SymbolsInput symbols={symbols} onChange={setSymbols} />
+                  <p className="mt-2 text-[11px] text-faint">
+                    One quote request per symbol — each is cached and
+                    refreshed on the widget’s interval.
+                  </p>
+                </>
+              ) : cardListMode ? (
+                <>
+                  <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+                    Rows list
+                  </p>
+                  {selectedList ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onSelectList(null)}
+                        className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-ink"
+                      >
+                        <ChevronLeft className="size-3.5" aria-hidden />
+                        Lists
+                      </button>
+                      <span
+                        className="min-w-0 flex-1 truncate font-mono text-xs text-faint"
+                        title={selectedList.path}
+                      >
+                        {selectedList.path}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-faint">
+                        {listRows.length} {listRows.length === 1 ? 'row' : 'rows'}
+                      </span>
+                    </div>
+                  ) : (
+                    <ListPicker lists={lists} onSelect={onSelectList} />
+                  )}
+                </>
+              ) : (
+                <JsonExplorer
+                  mode={mode}
+                  data={test.data}
+                  selectedList={selectedList}
+                  onSelectList={onSelectList}
+                  addedKeys={addedKeys}
+                  onAdd={onPick}
+                />
+              )}
 
               <div className="mt-5 flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted">
@@ -578,8 +865,28 @@ function ModalPanel({
                   <p className="text-xs normal-case text-down">{errors.fields}</p>
                 )}
               </div>
-              {mode === 'card' && (
+              {mode === 'card' && cardFieldsMode && (
                 <FieldList fields={cardFields} onChange={setCardFields} />
+              )}
+              {mode === 'card' && cardListMode &&
+                (selectedList ? (
+                  <CardColumnFields
+                    options={columns.map((c) => c.key)}
+                    value={cardColumns}
+                    onChange={setCardColumns}
+                  />
+                ) : (
+                  <p className="mt-2 text-xs text-faint">
+                    Pick a list above, then map its columns.
+                  </p>
+                ))}
+              {mode === 'card' && cardSymbolsMode && (
+                <CardColumnFields
+                  options={leafKeys}
+                  value={cardColumns}
+                  onChange={setCardColumns}
+                  nameIsSymbol
+                />
               )}
               {mode === 'table' &&
                 (selectedList ? (
@@ -681,6 +988,44 @@ function ModalPanel({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Small segmented pill group used by the card-type sub-toggles. */
+function PillRow<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="inline-flex gap-1 rounded-full border border-subtle bg-raised p-1"
+    >
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            value === o.value
+              ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
+              : 'text-muted hover:text-ink'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

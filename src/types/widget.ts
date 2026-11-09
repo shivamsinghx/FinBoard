@@ -46,12 +46,20 @@ export type CardKind =
   | 'financials'
   | 'quote';
 
+/** name/price/change column keys for list- and symbol-based cards. */
+export type CardColumnMap = Partial<Record<'name' | 'price' | 'change', string>>;
+
 export interface CardSettings {
   kind: CardKind;
   /** Symbols this card tracks (watchlist/quote cards). */
   symbols: string[];
   /** Path to the row list for watchlist/gainers/losers cards. */
   listPath?: string;
+  /**
+   * Column mapping over list rows — or over the quote payload's fields
+   * for symbol-based watchlists (name unused there, the symbol shows).
+   */
+  columns?: CardColumnMap;
 }
 
 export interface TableSettings {
