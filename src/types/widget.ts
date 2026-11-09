@@ -172,10 +172,30 @@ export const WIDGET_GRID_DEFAULTS: Record<
   WidgetType,
   Pick<WidgetLayout, 'w' | 'h' | 'minW' | 'minH'>
 > = {
-  card: { w: 4, h: 4, minW: 2, minH: 3 },
-  table: { w: 8, h: 6, minW: 4, minH: 4 },
-  chart: { w: 6, h: 5, minW: 3, minH: 3 },
+  card: { w: 3, h: 4, minW: 2, minH: 3 },
+  table: { w: 8, h: 7, minW: 4, minH: 4 },
+  chart: { w: 6, h: 6, minW: 3, minH: 3 },
 };
+
+/**
+ * Grid footprint for a new widget — used by the CSS grid now and by
+ * react-grid-layout later, so it stays 1:1. Cards size by kind:
+ * field-picking cards (financials/performance/quote) are the small
+ * 3×4 tile; list-backed cards (watchlist/gainers/losers) need room
+ * for rows, so they get 4×6.
+ */
+export function widgetGridSize(
+  type: WidgetType,
+  config?: Partial<WidgetConfig>,
+): Pick<WidgetLayout, 'w' | 'h'> {
+  if (type === 'table') return { w: 8, h: 7 };
+  if (type === 'chart') return { w: 6, h: 6 };
+  const kind = config?.card?.kind;
+  if (kind === 'watchlist' || kind === 'gainers' || kind === 'losers') {
+    return { w: 4, h: 6 };
+  }
+  return { w: 3, h: 4 };
+}
 
 export const WIDGET_TYPE_LABELS: Record<WidgetType, string> = {
   card: 'Finance Card',

@@ -49,7 +49,7 @@ export function WidgetShell({ widget, query, empty, children }: WidgetShellProps
   const unusable = !fatal && !stale && status !== 'loading' && (status === 'empty' || empty);
 
   return (
-    <article className="relative flex h-full min-h-[160px] flex-col overflow-hidden rounded-xl border border-subtle bg-surface">
+    <article className="relative flex h-full min-h-[160px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
       <header className="flex items-center gap-1.5 border-b border-subtle/60 px-3 py-2">
         <GripVertical
           className="size-3.5 shrink-0 cursor-grab text-faint/70"
@@ -105,7 +105,7 @@ export function WidgetShell({ widget, query, empty, children }: WidgetShellProps
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {status === 'loading' ? (
           <SkeletonBody kind={widget.type} />
         ) : fatal ? (

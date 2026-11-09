@@ -154,7 +154,7 @@ function FieldValue({
 
   return (
     <span
-      className={`shrink-0 rounded px-1 font-medium tabular-nums transition-colors duration-500 ${
+      className={`min-w-0 truncate rounded px-1 font-medium tabular-nums transition-colors duration-500 ${
         big ? 'text-2xl' : ''
       } ${fl === 'up' ? 'bg-up/15 text-up' : fl === 'down' ? 'bg-down/15 text-down' : ''} ${
         change && !fl

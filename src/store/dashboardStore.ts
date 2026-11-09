@@ -8,6 +8,7 @@ import { FINBOARD_STORAGE_KEY } from '@/lib/constants';
 import {
   WIDGET_GRID_DEFAULTS,
   WIDGET_TYPE_LABELS,
+  widgetGridSize,
   type ApiProvider,
   type DashboardExport,
   type ThemeMode,
@@ -142,14 +143,14 @@ export const useDashboardStore = create<DashboardState>()(
 
       addWidget: (type, overrides) => {
         const id = createId();
-        const defaults = WIDGET_GRID_DEFAULTS[type];
         const widget: WidgetInstance = {
           id,
           type,
           layout: {
             x: 0,
             y: nextY(get().widgets),
-            ...defaults,
+            ...WIDGET_GRID_DEFAULTS[type],
+            ...widgetGridSize(type, overrides?.config),
             ...overrides?.layout,
           },
           config: { ...defaultConfigFor(type), ...overrides?.config },
