@@ -8,7 +8,7 @@ import {
   useState,
   type FormEvent,
 } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { selectEditingWidget, useDashboardStore } from '@/store/dashboardStore';
 import { findArrays, flattenJson, type ArrayInfo } from '@/lib/jsonPaths';
 import {
@@ -39,6 +39,31 @@ import {
   FieldList,
 } from '@/components/json-explorer/SelectedFields';
 import { SymbolsInput } from '@/components/json-explorer/SymbolsInput';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import { Kbd } from '@/components/ui/kbd';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Spinner } from '@/components/ui/spinner';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const MODE_TABS: { type: WidgetType; label: string }[] = [
   { type: 'card', label: 'Card' },
@@ -91,8 +116,7 @@ const EXAMPLE_APIS: { label: string; url: string }[] = [
 
 const OHLC_ROLES = ['open', 'high', 'low', 'close'] as const;
 const MIN_REFRESH_SEC = 10;
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const SM_BREAKPOINT = '(min-width: 640px)';
 
 /** Result of the one-shot "Test" call — kept for the field picker. */
 type TestState =
@@ -145,6 +169,16 @@ function ModalPanel({
   const updateWidgetConfig = useDashboardStore((s) => s.updateWidgetConfig);
   const close = editing ? closeWidgetEditor : closeAddWidget;
   const isEdit = !!editing;
+  /**
+   * Read once at mount — Dialog on ≥640px, bottom sheet below. A live
+   * media listener would swap the frame mid-session and remount (lose)
+   * all modal state on resize.
+   */
+  const [isDesktop] = useState(
+    () =>
+      typeof window === 'undefined' ||
+      window.matchMedia(SM_BREAKPOINT).matches,
+  );
 
   const [title, setTitle] = useState(editing?.config.title ?? '');
   const [url, setUrl] = useState(editing?.config.endpoint ?? initialUrl);
@@ -156,7 +190,6 @@ function ModalPanel({
   const [tried, setTried] = useState(false);
   /** Guards against stale responses and StrictMode double-effects. */
   const seqRef = useRef(0);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   /* ---- field selection state (prefilled from the widget when editing) ---- */
   const [selectedList, setSelectedList] = useState<ArrayInfo | null>(() => {
@@ -274,34 +307,6 @@ function ModalPanel({
       void runTest(initial);
     }
   }, [initialUrl, editing, runTest]);
-
-  // Esc closes; Tab cycles inside the panel (focus trap).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        close();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const panel = panelRef.current;
-      if (!panel) return;
-      const focusables = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)];
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-      const leaving = e.shiftKey
-        ? active === first || !panel.contains(active)
-        : active === last || !panel.contains(active);
-      if (leaving) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [close]);
 
   /* ---- validation ---- */
 
@@ -596,47 +601,24 @@ function ModalPanel({
 
   /* ---- render ---- */
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={isEdit ? 'Edit widget' : 'Add widget'}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px] sm:p-4"
-      onClick={close}
-    >
-      <div
-        ref={panelRef}
-        className={`flex h-full w-full flex-col bg-surface transition-[max-width] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:border sm:border-subtle sm:shadow-xl ${
-          test.phase === 'ok' ? 'sm:max-w-2xl' : 'sm:max-w-md'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between px-6 pt-6">
-          <h2 className="font-display text-2xl">
-            {isEdit ? 'Edit widget' : 'Add widget'}
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            className="flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-raised hover:text-ink"
-          >
-            <X className="size-4" aria-hidden />
-          </button>
-        </div>
+  const heading = isEdit ? 'Edit widget' : 'Add widget';
 
-        {/* scrollable body */}
-        <div className="flex-1 overflow-y-auto px-6 pb-2">
-          <label
-            htmlFor="widget-api-url"
-            className="mt-5 block text-xs font-medium uppercase tracking-wide text-muted"
-          >
-            API URL
-          </label>
-          <form onSubmit={onSubmit} className="mt-2 flex items-center gap-2">
-            <input
+  const body = (
+    <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
+      <Field
+        className="mt-5"
+        data-invalid={tried && !!errors.url ? true : undefined}
+      >
+        <FieldLabel
+          htmlFor="widget-api-url"
+          className="text-xs font-medium uppercase tracking-wide text-muted"
+        >
+          API URL
+        </FieldLabel>
+        <form onSubmit={onSubmit}>
+          <InputGroup className="h-10">
+            <InputGroupInput
               id="widget-api-url"
-              type="text"
               inputMode="url"
               autoFocus
               value={url}
@@ -645,391 +627,432 @@ function ModalPanel({
                 setTest({ phase: 'idle' });
               }}
               placeholder="https://api.example.com/quote?symbol=AAPL"
-              className="min-w-0 flex-1 rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent"
+              aria-invalid={tried && !!errors.url ? true : undefined}
             />
-            <button
-              type="submit"
-              disabled={!url.trim() || test.phase === 'testing'}
-              className="flex min-w-16 shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-strong disabled:pointer-events-none disabled:opacity-50"
-            >
-              {test.phase === 'testing' ? (
-                <Loader2 className="size-4 animate-spin" aria-label="Testing" />
-              ) : (
-                'Test'
-              )}
-            </button>
-          </form>
-          {tried && errors.url && (
-            <p className="mt-1.5 text-xs text-down">{errors.url}</p>
-          )}
-
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-faint">Try</span>
-            {EXAMPLE_APIS.map((ex) => (
-              <button
-                key={ex.url}
-                type="button"
-                onClick={() => pickExample(ex.url)}
-                className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-strong hover:text-ink"
+            <InputGroupAddon align="inline-end" className="gap-1.5">
+              <Kbd className="hidden sm:inline-flex">Enter</Kbd>
+              <InputGroupButton
+                type="submit"
+                variant="outline"
+                size="sm"
+                disabled={!url.trim() || test.phase === 'testing'}
+                className="min-w-14 bg-raised"
               >
-                {ex.label}
-              </button>
-            ))}
-          </div>
+                {test.phase === 'testing' ? (
+                  <Spinner className="size-3.5" aria-label="Testing" />
+                ) : (
+                  'Test'
+                )}
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
+        </form>
+        <FieldError>{tried && errors.url}</FieldError>
+      </Field>
 
-          {test.phase === 'ok' && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-up/30 bg-up/10 px-3 py-2 text-sm text-up">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>
-                Connected · {test.fields}{' '}
-                {test.fields === 1 ? 'field' : 'fields'} found
-                {test.lists > 0 &&
-                  ` · ${test.lists} ${test.lists === 1 ? 'list' : 'lists'} found`}
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-faint">Try</span>
+        {EXAMPLE_APIS.map((ex) => (
+          <button
+            key={ex.url}
+            type="button"
+            onClick={() => pickExample(ex.url)}
+            className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-strong hover:text-ink"
+          >
+            {ex.label}
+          </button>
+        ))}
+      </div>
+
+      {test.phase === 'ok' && (
+        <Alert className="mt-3 border-up/30 bg-up/10 text-up">
+          <CheckCircle2 aria-hidden />
+          <AlertTitle className="font-normal">
+            Connected · {test.fields}{' '}
+            {test.fields === 1 ? 'field' : 'fields'} found
+            {test.lists > 0 &&
+              ` · ${test.lists} ${test.lists === 1 ? 'list' : 'lists'} found`}
+          </AlertTitle>
+        </Alert>
+      )}
+      {test.phase === 'fail' && (
+        <Alert
+          variant="destructive"
+          className="mt-3 border-down/30 bg-down/10"
+        >
+          <AlertTriangle aria-hidden />
+          <AlertTitle className="font-normal">
+            {FRIENDLY_ERRORS[test.code]}
+          </AlertTitle>
+          {test.error && test.error !== FRIENDLY_ERRORS[test.code] && (
+            <AlertDescription className="text-xs">
+              {test.error}
+            </AlertDescription>
+          )}
+        </Alert>
+      )}
+
+      <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+        Display mode
+      </p>
+      <SegGroup
+        ariaLabel="Display mode"
+        title={
+          isEdit ? 'Display mode can’t change on an existing widget' : undefined
+        }
+        disabled={isEdit}
+        options={MODE_TABS.map((t) => ({ value: t.type, label: t.label }))}
+        value={mode}
+        onChange={setMode}
+        className="mt-2 w-full"
+        itemClassName="h-9 flex-1 text-sm"
+      />
+
+      {mode === 'card' && (
+        <>
+          <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+            Card type
+          </p>
+          <SegGroup
+            ariaLabel="Card type"
+            options={CARD_TYPES}
+            value={cardType}
+            onChange={onCardType}
+            className="mt-2 w-full"
+            itemClassName="h-9 flex-1 text-xs"
+          />
+
+          {cardType === 'movers' && (
+            <div className="mt-3 flex items-center gap-2.5">
+              <span className="text-xs text-muted">Show</span>
+              <SegGroup
+                ariaLabel="Movers direction"
+                options={[
+                  { value: 'gainers', label: 'Gainers' },
+                  { value: 'losers', label: 'Losers' },
+                ]}
+                value={moversDir}
+                onChange={setMoversDir}
+                itemClassName="h-7 px-3 text-xs"
+              />
+              <span className="text-[11px] text-faint">
+                {moversDir === 'gainers' ? 'biggest gains first' : 'biggest losses first'}
               </span>
             </div>
           )}
-          {test.phase === 'fail' && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <div>
-                <p>{FRIENDLY_ERRORS[test.code]}</p>
-                {test.error && test.error !== FRIENDLY_ERRORS[test.code] && (
-                  <p className="mt-0.5 text-xs opacity-80">{test.error}</p>
-                )}
-              </div>
+
+          {cardType === 'watchlist' && (
+            <div className="mt-3 flex items-center gap-2.5">
+              <span className="text-xs text-muted">Source</span>
+              <SegGroup
+                ariaLabel="Watchlist source"
+                options={WATCHLIST_SOURCES}
+                value={watchlistSource}
+                onChange={onWatchlistSource}
+                itemClassName="h-7 px-3 text-xs"
+              />
             </div>
           )}
+        </>
+      )}
 
-          <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
-            Display mode
-          </p>
-          <div
-            role="tablist"
-            aria-label="Display mode"
-            title={isEdit ? 'Display mode can’t change on an existing widget' : undefined}
-            className="mt-2 grid grid-cols-3 gap-1 rounded-full border border-subtle bg-raised p-1"
-          >
-            {MODE_TABS.map((t) => (
-              <button
-                key={t.type}
-                type="button"
-                role="tab"
-                aria-selected={mode === t.type}
-                disabled={isEdit}
-                onClick={() => setMode(t.type)}
-                className={`rounded-full px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${
-                  mode === t.type
-                    ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
-                    : 'text-muted hover:text-ink'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {mode === 'card' && (
-            <>
-              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
-                Card type
-              </p>
-              <div
-                role="radiogroup"
-                aria-label="Card type"
-                className="mt-2 grid grid-cols-4 gap-1 rounded-full border border-subtle bg-raised p-1"
-              >
-                {CARD_TYPES.map((t) => (
+      {test.phase === 'ok' && (
+        <>
+          {mode === 'card' &&
+            cardType === 'performance' &&
+            suggestedPaths.length > 0 && (
+              <div className="mt-5 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-faint">Suggested</span>
+                {suggestedPaths.map((p) => (
                   <button
-                    key={t.value}
+                    key={p}
                     type="button"
-                    role="radio"
-                    aria-checked={cardType === t.value}
-                    onClick={() => onCardType(t.value)}
-                    className={`rounded-full px-2 py-2 text-xs font-medium transition-colors ${
-                      cardType === t.value
-                        ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
-                        : 'text-muted hover:text-ink'
-                    }`}
+                    disabled={addedKeys.has(p)}
+                    onClick={() => onPick(p)}
+                    title={p}
+                    className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-40"
                   >
-                    {t.label}
+                    {prettifyKey(lastPathSegment(p))}
                   </button>
                 ))}
               </div>
+            )}
 
-              {cardType === 'movers' && (
-                <div className="mt-3 flex items-center gap-2.5">
-                  <span className="text-xs text-muted">Show</span>
-                  <PillRow
-                    ariaLabel="Movers direction"
-                    options={[
-                      { value: 'gainers', label: 'Gainers' },
-                      { value: 'losers', label: 'Losers' },
-                    ]}
-                    value={moversDir}
-                    onChange={setMoversDir}
-                  />
-                  <span className="text-[11px] text-faint">
-                    {moversDir === 'gainers' ? 'biggest gains first' : 'biggest losses first'}
+          {cardSymbolsMode ? (
+            <>
+              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+                Watchlist symbols
+              </p>
+              <SymbolsInput symbols={symbols} onChange={setSymbols} />
+              <p className="mt-2 text-[11px] text-faint">
+                One quote request per symbol — each is cached and
+                refreshed on the widget’s interval.
+              </p>
+            </>
+          ) : cardListMode ? (
+            <>
+              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
+                Rows list
+              </p>
+              {selectedList ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onSelectList(null)}
+                    className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-ink"
+                  >
+                    <ChevronLeft className="size-3.5" aria-hidden />
+                    Lists
+                  </button>
+                  <span
+                    className="min-w-0 flex-1 truncate font-mono text-xs text-faint"
+                    title={selectedList.path}
+                  >
+                    {selectedList.path}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-faint">
+                    {listRows.length} {listRows.length === 1 ? 'row' : 'rows'}
                   </span>
                 </div>
-              )}
-
-              {cardType === 'watchlist' && (
-                <div className="mt-3 flex items-center gap-2.5">
-                  <span className="text-xs text-muted">Source</span>
-                  <PillRow
-                    ariaLabel="Watchlist source"
-                    options={WATCHLIST_SOURCES}
-                    value={watchlistSource}
-                    onChange={onWatchlistSource}
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {test.phase === 'ok' && (
-            <>
-              {mode === 'card' &&
-                cardType === 'performance' &&
-                suggestedPaths.length > 0 && (
-                  <div className="mt-5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-faint">Suggested</span>
-                    {suggestedPaths.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        disabled={addedKeys.has(p)}
-                        onClick={() => onPick(p)}
-                        title={p}
-                        className="rounded-full border border-subtle bg-raised px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-40"
-                      >
-                        {prettifyKey(lastPathSegment(p))}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-              {cardSymbolsMode ? (
-                <>
-                  <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
-                    Watchlist symbols
-                  </p>
-                  <SymbolsInput symbols={symbols} onChange={setSymbols} />
-                  <p className="mt-2 text-[11px] text-faint">
-                    One quote request per symbol — each is cached and
-                    refreshed on the widget’s interval.
-                  </p>
-                </>
-              ) : cardListMode ? (
-                <>
-                  <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted">
-                    Rows list
-                  </p>
-                  {selectedList ? (
-                    <div className="mt-2 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onSelectList(null)}
-                        className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-ink"
-                      >
-                        <ChevronLeft className="size-3.5" aria-hidden />
-                        Lists
-                      </button>
-                      <span
-                        className="min-w-0 flex-1 truncate font-mono text-xs text-faint"
-                        title={selectedList.path}
-                      >
-                        {selectedList.path}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-faint">
-                        {listRows.length} {listRows.length === 1 ? 'row' : 'rows'}
-                      </span>
-                    </div>
-                  ) : (
-                    <ListPicker lists={lists} onSelect={onSelectList} />
-                  )}
-                </>
               ) : (
-                <JsonExplorer
-                  mode={mode}
-                  data={test.data}
-                  selectedList={selectedList}
-                  onSelectList={onSelectList}
-                  addedKeys={addedKeys}
-                  onAdd={onPick}
-                />
+                <ListPicker lists={lists} onSelect={onSelectList} />
               )}
-
-              <div className="mt-5 flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                  Selected fields
-                </p>
-                {tried && errors.fields && (
-                  <p className="text-xs normal-case text-down">{errors.fields}</p>
-                )}
-              </div>
-              {mode === 'card' && cardFieldsMode && (
-                <FieldList fields={cardFields} onChange={setCardFields} />
-              )}
-              {mode === 'card' && cardListMode &&
-                (selectedList ? (
-                  <CardColumnFields
-                    options={columns.map((c) => c.key)}
-                    value={cardColumns}
-                    onChange={setCardColumns}
-                  />
-                ) : (
-                  <p className="mt-2 text-xs text-faint">
-                    Pick a list above, then map its columns.
-                  </p>
-                ))}
-              {mode === 'card' && cardSymbolsMode && (
-                <CardColumnFields
-                  options={leafKeys}
-                  value={cardColumns}
-                  onChange={setCardColumns}
-                  nameIsSymbol
-                />
-              )}
-              {mode === 'table' &&
-                (selectedList ? (
-                  <FieldList fields={tableFields} onChange={setTableFields} />
-                ) : (
-                  <p className="mt-2 text-xs text-faint">
-                    Pick a list above, then add its columns.
-                  </p>
-                ))}
-              {mode === 'chart' &&
-                (selectedList ? (
-                  <ChartFields
-                    columns={columns}
-                    chartType={chartType}
-                    onChartType={onChartType}
-                    xField={xField}
-                    onXField={setXField}
-                    values={chartValues}
-                    onValues={setChartValues}
-                    ohlc={ohlc}
-                    onOhlc={setOhlc}
-                  />
-                ) : (
-                  <p className="mt-2 text-xs text-faint">
-                    Pick a list above to map chart fields.
-                  </p>
-                ))}
             </>
+          ) : (
+            <JsonExplorer
+              mode={mode}
+              data={test.data}
+              selectedList={selectedList}
+              onSelectList={onSelectList}
+              addedKeys={addedKeys}
+              onAdd={onPick}
+            />
           )}
 
-          <div className="mt-6 flex items-start gap-3 pb-4">
-            <div className="min-w-0 flex-1">
-              <label
-                htmlFor="widget-name"
-                className="block text-xs font-medium uppercase tracking-wide text-muted"
-              >
-                Name
-              </label>
-              <input
-                id="widget-name"
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    save();
-                  }
-                }}
-                placeholder="e.g. AAPL quote"
-                className="mt-2 w-full rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent"
-              />
-              {tried && errors.name && (
-                <p className="mt-1 text-xs text-down">{errors.name}</p>
-              )}
-            </div>
-            <div className="w-28 shrink-0">
-              <label
-                htmlFor="widget-refresh"
-                className="block text-xs font-medium uppercase tracking-wide text-muted"
-              >
-                Refresh (s)
-              </label>
-              <input
-                id="widget-refresh"
-                type="number"
-                min={MIN_REFRESH_SEC}
-                value={refreshSec}
-                onChange={(e) => setRefreshSec(Number(e.target.value))}
-                className="mt-2 w-full rounded-lg border border-subtle bg-raised px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
-              />
-              {tried && errors.refresh && (
-                <p className="mt-1 text-xs text-down">{errors.refresh}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* sticky footer */}
-        <div className="shrink-0 border-t border-subtle bg-surface px-6 py-4 sm:rounded-b-2xl">
-          <div className="flex items-center justify-end gap-2">
-            {tried && firstError && (
-              <p className="mr-auto truncate text-xs text-down">{firstError}</p>
+          <div className="mt-5 flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
+              Selected fields
+            </p>
+            {tried && errors.fields && (
+              <p className="text-xs normal-case text-down">{errors.fields}</p>
             )}
-            <button
-              type="button"
-              onClick={close}
-              className="rounded-lg px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover"
-            >
-              {isEdit ? 'Save changes' : 'Add widget'}
-            </button>
           </div>
-        </div>
+          {mode === 'card' && cardFieldsMode && (
+            <FieldList fields={cardFields} onChange={setCardFields} />
+          )}
+          {mode === 'card' && cardListMode &&
+            (selectedList ? (
+              <CardColumnFields
+                options={columns.map((c) => c.key)}
+                value={cardColumns}
+                onChange={setCardColumns}
+              />
+            ) : (
+              <p className="mt-2 text-xs text-faint">
+                Pick a list above, then map its columns.
+              </p>
+            ))}
+          {mode === 'card' && cardSymbolsMode && (
+            <CardColumnFields
+              options={leafKeys}
+              value={cardColumns}
+              onChange={setCardColumns}
+              nameIsSymbol
+            />
+          )}
+          {mode === 'table' &&
+            (selectedList ? (
+              <FieldList fields={tableFields} onChange={setTableFields} />
+            ) : (
+              <p className="mt-2 text-xs text-faint">
+                Pick a list above, then add its columns.
+              </p>
+            ))}
+          {mode === 'chart' &&
+            (selectedList ? (
+              <ChartFields
+                columns={columns}
+                chartType={chartType}
+                onChartType={onChartType}
+                xField={xField}
+                onXField={setXField}
+                values={chartValues}
+                onValues={setChartValues}
+                ohlc={ohlc}
+                onOhlc={setOhlc}
+              />
+            ) : (
+              <p className="mt-2 text-xs text-faint">
+                Pick a list above to map chart fields.
+              </p>
+            ))}
+        </>
+      )}
+
+      <div className="mt-6 flex items-start gap-3 pb-4">
+        <Field
+          className="min-w-0 flex-1"
+          data-invalid={tried && !!errors.name ? true : undefined}
+        >
+          <FieldLabel
+            htmlFor="widget-name"
+            className="text-xs font-medium uppercase tracking-wide text-muted"
+          >
+            Name
+          </FieldLabel>
+          <Input
+            id="widget-name"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                save();
+              }
+            }}
+            placeholder="e.g. AAPL quote"
+            aria-invalid={tried && !!errors.name ? true : undefined}
+            className="h-10"
+          />
+          <FieldError>{tried && errors.name}</FieldError>
+        </Field>
+        <Field
+          className="w-28 shrink-0"
+          data-invalid={tried && !!errors.refresh ? true : undefined}
+        >
+          <FieldLabel
+            htmlFor="widget-refresh"
+            className="text-xs font-medium uppercase tracking-wide text-muted"
+          >
+            Refresh (s)
+          </FieldLabel>
+          <Input
+            id="widget-refresh"
+            type="number"
+            min={MIN_REFRESH_SEC}
+            value={refreshSec}
+            onChange={(e) => setRefreshSec(Number(e.target.value))}
+            aria-invalid={tried && !!errors.refresh ? true : undefined}
+            className="h-10"
+          />
+          <FieldError>{tried && errors.refresh}</FieldError>
+        </Field>
       </div>
     </div>
   );
+
+  const footer = (
+    <div className="flex shrink-0 items-center justify-end gap-2 border-t border-subtle bg-surface px-6 py-4">
+      <div className="mr-auto flex min-w-0 items-center gap-3">
+        <span className="hidden shrink-0 items-center gap-1.5 text-[11px] text-faint sm:inline-flex">
+          <Kbd>Esc</Kbd> to close
+        </span>
+        {tried && firstError && (
+          <p className="truncate text-xs text-down">{firstError}</p>
+        )}
+      </div>
+      <Button variant="ghost" size="lg" onClick={close}>
+        Cancel
+      </Button>
+      <Button size="lg" onClick={save}>
+        {isEdit ? 'Save changes' : 'Add widget'}
+      </Button>
+    </div>
+  );
+
+  if (isDesktop) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && close()}>
+        <DialogContent
+          className={`flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-2xl border-subtle bg-surface p-0 text-ink transition-[max-width] ${
+            test.phase === 'ok' ? 'sm:max-w-2xl' : 'sm:max-w-md'
+          }`}
+        >
+          <DialogHeader className="gap-0 px-6 pt-6">
+            <DialogTitle className="font-display text-2xl">
+              {heading}
+            </DialogTitle>
+          </DialogHeader>
+          {body}
+          {footer}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Sheet open onOpenChange={(open) => !open && close()}>
+      <SheetContent
+        side="bottom"
+        className="max-h-[92dvh] gap-0 overflow-hidden rounded-t-2xl bg-surface p-0 text-ink"
+      >
+        <SheetHeader className="gap-0 px-6 pb-0 pt-5">
+          <SheetTitle className="text-left font-display text-2xl">
+            {heading}
+          </SheetTitle>
+        </SheetHeader>
+        {body}
+        {footer}
+      </SheetContent>
+    </Sheet>
+  );
 }
 
-/** Small segmented pill group used by the card-type sub-toggles. */
-function PillRow<T extends string>({
+/**
+ * Pressed-state styling for the segmented controls — mirrored across
+ * every attribute the cva/base-ui layer may expose so the selected pill
+ * is always the surfaced one.
+ */
+const SEG_PRESSED =
+  'data-pressed:bg-surface data-pressed:text-ink data-pressed:shadow-sm ' +
+  'aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-sm ' +
+  'data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:shadow-sm';
+
+/**
+ * Single-select segmented control (Card/Table/Chart, card type, and the
+ * card sub-toggles). ToggleGroup stays pressed on the active item;
+ * guarding the empty value keeps one option always selected.
+ */
+function SegGroup<T extends string>({
   options,
   value,
   onChange,
   ariaLabel,
+  title,
+  disabled,
+  className,
+  itemClassName,
 }: {
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
   ariaLabel: string;
+  title?: string;
+  disabled?: boolean;
+  className?: string;
+  itemClassName?: string;
 }) {
   return (
-    <div
-      role="radiogroup"
+    <ToggleGroup
+      value={[value]}
+      onValueChange={(v) => {
+        if (v.length) onChange(v[v.length - 1] as T);
+      }}
       aria-label={ariaLabel}
-      className="inline-flex gap-1 rounded-full border border-subtle bg-raised p-1"
+      title={title}
+      disabled={disabled}
+      spacing={1}
+      className={`rounded-full border border-subtle bg-raised p-1 ${className ?? ''}`}
     >
       {options.map((o) => (
-        <button
+        <ToggleGroupItem
           key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-            value === o.value
-              ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
-              : 'text-muted hover:text-ink'
-          }`}
+          value={o.value}
+          className={`rounded-full text-muted hover:text-ink ${SEG_PRESSED} ${itemClassName ?? ''}`}
         >
           {o.label}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

@@ -19,14 +19,12 @@ interface MorphPillProps {
   tint: { bg: string; fg: string };
   /** Currently shown slot (controlled by `useMorphSequence`). */
   index: number;
-  /** Advance to the next slot (hover/focus/click). */
-  onNext: () => void;
 }
 
 /**
  * Drives a group of pills on a continuous loop: every `step` ms the next
  * pill (left to right, wrapping) swaps its word, so sibling pills never
- * morph at the same moment. Returns current indices and `advance(pill)`.
+ * morph at the same moment. Returns the current slot index per pill.
  */
 export function useMorphSequence(lengths: number[], step = 870) {
   const [indices, setIndices] = useState(() => lengths.map(() => 0));
@@ -42,10 +40,7 @@ export function useMorphSequence(lengths: number[], step = 870) {
     return () => clearInterval(iv);
   }, [key, step]);
 
-  const advance = (p: number) =>
-    setIndices((cur) => cur.map((v, j) => (j === p ? (v + 1) % lengths[p] : v)));
-
-  return [indices, advance] as const;
+  return indices;
 }
 
 /* Exit: quick ease-in squash + blur. Enter: waits for the exit to start,
@@ -60,7 +55,7 @@ const GPU = 'transform-gpu will-change-[transform,opacity,filter] transition-all
  * to the measured width of the incoming word, so the pill resizes smoothly
  * instead of snapping. Reduced motion falls back to a plain crossfade.
  */
-export function MorphPill({ slots, tint, index, onNext: next }: MorphPillProps) {
+export function MorphPill({ slots, tint, index }: MorphPillProps) {
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [widths, setWidths] = useState<number[]>([]);
 
@@ -74,12 +69,8 @@ export function MorphPill({ slots, tint, index, onNext: next }: MorphPillProps) 
   }, [slots]);
 
   return (
-    <button
-      type="button"
-      onMouseEnter={next}
-      onFocus={next}
-      onClick={next}
-      className="mx-1 inline-flex items-center gap-1.5 rounded-full bg-ink/[0.06] py-1 pr-3.5 pl-1.5 align-middle leading-[1.15] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(17,17,17,0.06),0_6px_14px_-6px_rgba(17,17,17,0.18)] transition-[background-color,box-shadow] hover:bg-ink/[0.09] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(17,17,17,0.08),0_8px_18px_-6px_rgba(17,17,17,0.22)]"
+    <span
+      className="mx-1 inline-flex items-center gap-1.5 rounded-full bg-ink/[0.06] py-1 pr-3.5 pl-1.5 align-middle leading-[1.15] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(17,17,17,0.06),0_6px_14px_-6px_rgba(17,17,17,0.18)]"
     >
       <span
         className={`relative flex size-[1.5em] shrink-0 items-center justify-center ${
@@ -131,6 +122,6 @@ export function MorphPill({ slots, tint, index, onNext: next }: MorphPillProps) 
           </span>
         ))}
       </span>
-    </button>
+    </span>
   );
 }

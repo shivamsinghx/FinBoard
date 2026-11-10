@@ -8,6 +8,23 @@ import type {
   DataFormat,
   FieldMapping,
 } from '@/types/widget';
+import { Button } from '@/components/ui/button';
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const FORMAT_OPTIONS: { value: DataFormat; label: string }[] = [
   { value: 'auto', label: 'auto' },
@@ -17,11 +34,19 @@ const FORMAT_OPTIONS: { value: DataFormat; label: string }[] = [
   { value: 'date', label: 'date' },
 ];
 
+const FORMAT_LABELS = Object.fromEntries(
+  FORMAT_OPTIONS.map((o) => [o.value, o.label]),
+);
+
 const CHART_TYPES: { value: ChartKind; label: string }[] = [
   { value: 'line', label: 'Line' },
   { value: 'area', label: 'Area' },
   { value: 'candle', label: 'Candle' },
 ];
+
+const CHART_LABELS = Object.fromEntries(
+  CHART_TYPES.map((t) => [t.value, t.label]),
+);
 
 const OHLC_ROLES = [
   { key: 'open', label: 'Open' },
@@ -66,24 +91,24 @@ export function FieldList({
       {fields.map((f, i) => (
         <li key={f.path} className="flex items-center gap-1.5">
           <div className="flex flex-col">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => move(i, -1)}
               disabled={i === 0}
               aria-label={`Move ${f.label} up`}
-              className="rounded p-0.5 text-faint transition-colors hover:text-ink disabled:pointer-events-none disabled:opacity-30"
             >
               <ArrowUp className="size-3" aria-hidden />
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => move(i, 1)}
               disabled={i === fields.length - 1}
               aria-label={`Move ${f.label} down`}
-              className="rounded p-0.5 text-faint transition-colors hover:text-ink disabled:pointer-events-none disabled:opacity-30"
             >
               <ArrowDown className="size-3" aria-hidden />
-            </button>
+            </Button>
           </div>
 
           <span
@@ -93,35 +118,39 @@ export function FieldList({
             {f.path}
           </span>
 
-          <input
-            type="text"
+          <Input
             value={f.label}
             onChange={(e) => update(i, { label: e.target.value })}
             aria-label="Field label"
-            className="w-28 shrink-0 rounded-md border border-subtle bg-raised px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
+            className="h-7 w-28 shrink-0 px-2 text-xs"
           />
 
-          <select
+          <Select
+            items={FORMAT_LABELS}
             value={f.format}
-            onChange={(e) => update(i, { format: e.target.value as DataFormat })}
-            aria-label="Field format"
-            className="shrink-0 rounded-md border border-subtle bg-raised px-1.5 py-1.5 text-xs text-ink outline-none focus:border-accent"
+            onValueChange={(v) => v && update(i, { format: v as DataFormat })}
           >
-            {FORMAT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" aria-label="Field format" className="w-[104px] shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FORMAT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => remove(i)}
             aria-label={`Remove ${f.label}`}
-            className="flex size-6 shrink-0 items-center justify-center rounded-full text-faint transition-colors hover:bg-down/10 hover:text-down"
+            className="text-faint hover:bg-down/10 hover:text-down"
           >
             <X className="size-3.5" aria-hidden />
-          </button>
+          </Button>
         </li>
       ))}
     </ul>
@@ -157,35 +186,35 @@ export function ChartFields({
   ohlc,
   onOhlc,
 }: ChartFieldsProps) {
+  const columnKeys = columns.map((c) => c.key);
   return (
     <div className="mt-2 space-y-3">
       <div>
         <p className="text-[11px] font-medium uppercase tracking-wide text-faint">
           Chart type
         </p>
-        <div className="mt-1.5 inline-flex gap-1 rounded-full border border-subtle bg-raised p-1">
-          {CHART_TYPES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => onChartType(t.value)}
-              aria-pressed={chartType === t.value}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                chartType === t.value
-                  ? 'bg-surface text-ink shadow-sm ring-1 ring-subtle'
-                  : 'text-muted hover:text-ink'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <Select
+          items={CHART_LABELS}
+          value={chartType}
+          onValueChange={(v) => v && onChartType(v as ChartKind)}
+        >
+          <SelectTrigger size="sm" className="mt-1.5 w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CHART_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <ColumnSelect
         label="X axis (date / time)"
         value={xField}
-        columns={columns}
+        options={columnKeys}
         onChange={onXField}
       />
 
@@ -196,7 +225,7 @@ export function ChartFields({
               key={role.key}
               label={role.label}
               value={ohlc[role.key] ?? null}
-              columns={columns}
+              options={columnKeys}
               onChange={(key) => onOhlc({ ...ohlc, [role.key]: key ?? undefined })}
             />
           ))}
@@ -228,8 +257,8 @@ const CARD_COLUMN_ROLES = [
 ] as const;
 
 /**
- * Three selects mapping card roles to column keys — used by
- * movers/watchlist card types. With `nameIsSymbol` the Name select is
+ * Three comboboxes mapping card roles to column keys — used by
+ * movers/watchlist card types. With `nameIsSymbol` the Name picker is
  * pinned: rows display the symbol itself (symbol-based watchlists).
  */
 export function CardColumnFields({
@@ -243,7 +272,7 @@ export function CardColumnFields({
   onChange: (map: CardColumnMap) => void;
   nameIsSymbol?: boolean;
 }) {
-  // Keys claimed by other roles are hidden from each select, and picking
+  // Keys claimed by other roles are hidden from each picker, and picking
   // one clears the conflicting role — a column can never serve two roles.
   const taken = new Set(
     CARD_COLUMN_ROLES.map((r) => value[r.key]).filter((k): k is string => !!k),
@@ -266,60 +295,77 @@ export function CardColumnFields({
           ? []
           : options.filter((k) => k === value[key] || !taken.has(k));
         return (
-          <label key={key} className="block">
+          <div key={key}>
             <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
               {label}
             </span>
-            <select
-              value={pinSymbol ? '' : (value[key] ?? '')}
+            <ColumnSelect
+              label={label}
+              hideLabel
+              value={pinSymbol ? null : (value[key] ?? null)}
+              options={roleOptions}
               disabled={pinSymbol}
-              onChange={(e) => pick(key, e.target.value || undefined)}
-              className="mt-1 w-full rounded-md border border-subtle bg-raised px-2 py-1.5 text-xs text-ink outline-none focus:border-accent disabled:opacity-60"
-            >
-              <option value="">
-                {pinSymbol ? '— symbol —' : '— none —'}
-              </option>
-              {roleOptions.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-          </label>
+              placeholder={pinSymbol ? '— symbol —' : '— none —'}
+              onChange={(k) => pick(key, k ?? undefined)}
+            />
+          </div>
         );
       })}
     </div>
   );
 }
 
+/** Combobox picking one column key out of potentially many. */
 function ColumnSelect({
   label,
   value,
-  columns,
+  options,
   onChange,
+  disabled = false,
+  placeholder = '— pick a column —',
+  hideLabel = false,
 }: {
   label: string;
   value: string | null;
-  columns: ColumnInfo[];
+  options: string[];
   onChange: (key: string | null) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  hideLabel?: boolean;
 }) {
   return (
-    <label className="block">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
-        {label}
-      </span>
-      <select
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="mt-1 w-full rounded-md border border-subtle bg-raised px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
+    <div>
+      {!hideLabel && (
+        <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
+          {label}
+        </span>
+      )}
+      <Combobox
+        items={options}
+        value={value}
+        onValueChange={(v) => onChange(v ?? null)}
+        disabled={disabled}
       >
-        <option value="">— pick a column —</option>
-        {columns.map((c) => (
-          <option key={c.key} value={c.key}>
-            {c.key}
-          </option>
-        ))}
-      </select>
-    </label>
+        <ComboboxInput
+          aria-label={label}
+          placeholder={placeholder}
+          showClear={!!value}
+          disabled={disabled}
+          className="mt-1 w-full"
+        />
+        <ComboboxContent>
+          <ComboboxEmpty className="px-2 text-xs">
+            No matching columns.
+          </ComboboxEmpty>
+          <ComboboxList>
+            {options.map((k) => (
+              <ComboboxItem key={k} value={k}>
+                <span className="truncate font-mono text-xs">{k}</span>
+              </ComboboxItem>
+            ))}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
   );
 }

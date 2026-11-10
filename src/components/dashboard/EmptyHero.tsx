@@ -41,7 +41,7 @@ const PILLS: { tint: { bg: string; fg: string }; slots: MorphSlot[] }[] = [
 
 export function EmptyHero() {
   const addWidget = useDashboardStore((s) => s.addWidget);
-  const [indices, advance] = useMorphSequence(PILLS.map((p) => p.slots.length));
+  const indices = useMorphSequence(PILLS.map((p) => p.slots.length));
 
   return (
     <section className="relative flex min-h-[calc(100vh-4rem)] flex-1 items-start justify-center overflow-hidden">
@@ -59,13 +59,13 @@ export function EmptyHero() {
         <p className="mt-7 text-[clamp(1.15rem,1.9vw,1.5rem)] font-medium leading-[1.6] text-ink/90">
           <span className="sm:block sm:whitespace-nowrap">
             FinBoard turns any finance API into live{' '}
-            <MorphPill {...PILLS[0]} index={indices[0]} onNext={() => advance(0)} />,
-          </span>{' '}
+            <MorphPill {...PILLS[0]} index={indices[0]} />,{' '}
+          </span>
           <span className="sm:block sm:whitespace-nowrap">
-            <MorphPill {...PILLS[1]} index={indices[1]} onNext={() => advance(1)} />
-            {' '}and{' '}
-            <MorphPill {...PILLS[2]} index={indices[2]} onNext={() => advance(2)} />
-            , arranged your way.
+            <MorphPill {...PILLS[1]} index={indices[1]} />
+            <span className="mx-1">and</span>
+            <MorphPill {...PILLS[2]} index={indices[2]} />
+            <span>, arranged your way.</span>
           </span>
         </p>
 
