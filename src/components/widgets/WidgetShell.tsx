@@ -70,6 +70,8 @@ interface WidgetShellProps {
   query: WidgetDataResult;
   /** True when the payload resolves to nothing displayable. */
   empty: boolean;
+  /** Optional controls rendered in the header between title and actions. */
+  headerExtra?: ReactNode;
   children: ReactNode;
 }
 
@@ -83,7 +85,7 @@ interface WidgetShellProps {
  * type-shaped shimmer skeleton (first fetch), fatal error with Retry,
  * stale-data amber bar + children, or an empty-fields state.
  */
-export function WidgetShell({ widget, query, empty, children }: WidgetShellProps) {
+export function WidgetShell({ widget, query, empty, headerExtra, children }: WidgetShellProps) {
   const openWidgetEditor = useDashboardStore((s) => s.openWidgetEditor);
   const duplicateWidget = useDashboardStore((s) => s.duplicateWidget);
   const removeWidget = useDashboardStore((s) => s.removeWidget);
@@ -117,6 +119,7 @@ export function WidgetShell({ widget, query, empty, children }: WidgetShellProps
           aria-hidden
         />
         <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{cfg.title}</h3>
+        {!fatal && !unusable && status !== 'loading' && headerExtra}
         {cfg.description && (
           <HoverCard>
             <HoverCardTrigger
