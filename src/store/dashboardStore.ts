@@ -11,14 +11,13 @@ import {
   widgetGridSize,
   type ApiProvider,
   type DashboardExport,
-  type ThemeMode,
   type WidgetConfig,
   type WidgetInstance,
   type WidgetLayout,
   type WidgetType,
 } from '@/types/widget';
 
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -87,7 +86,6 @@ function parseDashboardExport(raw: unknown): DashboardExport {
 
 interface DashboardState {
   widgets: WidgetInstance[];
-  theme: ThemeMode;
 
   /** Widget whose config panel is open; transient — not persisted. */
   editingWidgetId: string | null;
@@ -121,9 +119,6 @@ interface DashboardState {
   openAddWidget: (url?: string) => void;
   closeAddWidget: () => void;
 
-  setTheme: (theme: ThemeMode) => void;
-  toggleTheme: () => void;
-
   /** Serialize the dashboard to a JSON string for backup/download. */
   exportDashboard: () => string;
   /** Restore a previously exported dashboard. Returns an error message or null. */
@@ -135,7 +130,6 @@ export const useDashboardStore = create<DashboardState>()(
   persist(
     (set, get) => ({
       widgets: [],
-      theme: 'light',
       editingWidgetId: null,
       hasHydrated: false,
       addWidgetOpen: false,
@@ -210,16 +204,11 @@ export const useDashboardStore = create<DashboardState>()(
       closeAddWidget: () =>
         set({ addWidgetOpen: false, addWidgetPrefill: '' }),
 
-      setTheme: (theme) => set({ theme }),
-      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
-
       exportDashboard: () => {
-        const { widgets, theme } = get();
         const payload: DashboardExport = {
           version: STORE_VERSION,
           exportedAt: new Date().toISOString(),
-          theme,
-          widgets,
+          widgets: get().widgets,
         };
         return JSON.stringify(payload, null, 2);
       },
@@ -227,7 +216,7 @@ export const useDashboardStore = create<DashboardState>()(
       importDashboard: (json) => {
         try {
           const data = parseDashboardExport(JSON.parse(json));
-          set({ widgets: data.widgets, theme: data.theme ?? 'light', editingWidgetId: null });
+          set({ widgets: data.widgets, editingWidgetId: null });
           return null;
         } catch (err) {
           return err instanceof Error ? err.message : 'invalid dashboard file';
@@ -246,7 +235,15 @@ export const useDashboardStore = create<DashboardState>()(
        * markup and first client render identical.
        */
       skipHydration: true,
-      partialize: (s) => ({ widgets: s.widgets, theme: s.theme }),
+      partialize: (s) => ({ widgets: s.widgets }),
+      migrate: (persisted, version) => {
+        // v1 persisted { widgets, theme } — drop the theme field so old
+        // dashboards still load.
+        if (version < 2 && persisted && typeof persisted === 'object') {
+          delete (persisted as Record<string, unknown>).theme;
+        }
+        return persisted as { widgets: WidgetInstance[] };
+      },
       onRehydrateStorage: () => () => {
         useDashboardStore.setState({ hasHydrated: true });
       },

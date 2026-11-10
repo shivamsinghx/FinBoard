@@ -189,130 +189,36 @@ function toAlpha(color: string, a: number): string {
   return color + Math.round(a * 255).toString(16).padStart(2, '0');
 }
 
-/* ------------------------------------------------------------------ */
-/* Dark theme: solid dark-teal bars with hairline borders, staggered   */
-/* ------------------------------------------------------------------ */
-
-const DARK_BAR_FILL = 'rgba(18, 68, 71, 0.55)';
-const DARK_BAR_BORDER = 'rgba(148, 200, 192, 0.28)';
-const DARK_BAR_H = 52;
-
-interface DarkStack {
-  /** px from the side's edge */
-  x: number;
-  /** px from hero top */
-  y: number;
-  /** each bar: width + horizontal offset (the staircase step) */
-  bars: { w: number; x: number }[];
-}
-
-const LEFT_DARK_STACKS: DarkStack[] = [
-  {
-    x: 24,
-    y: 70,
-    bars: [
-      { w: 390, x: 0 },
-      { w: 390, x: 74 },
-      { w: 390, x: -8 },
-      { w: 390, x: 68 },
-    ],
-  },
-  {
-    x: 56,
-    y: 330,
-    bars: [
-      { w: 340, x: 0 },
-      { w: 340, x: 66 },
-      { w: 340, x: -6 },
-      { w: 340, x: 60 },
-      { w: 340, x: 0 },
-    ],
-  },
-];
-
-const RIGHT_DARK_STACKS: DarkStack[] = [
-  {
-    x: 24,
-    y: 90,
-    bars: [
-      { w: 390, x: 0 },
-      { w: 390, x: -74 },
-      { w: 390, x: 8 },
-      { w: 390, x: -68 },
-    ],
-  },
-  {
-    x: 56,
-    y: 350,
-    bars: [
-      { w: 340, x: 0 },
-      { w: 340, x: -66 },
-      { w: 340, x: 6 },
-      { w: 340, x: -60 },
-      { w: 340, x: 0 },
-    ],
-  },
-];
-
 export function CellMosaic({ side }: { side: 'left' | 'right' }) {
   const left = side === 'left';
   const stacks = left ? LEFT_STACKS : RIGHT_STACKS;
-  const darkStacks = left ? LEFT_DARK_STACKS : RIGHT_DARK_STACKS;
   const edge = left ? 'left' : 'right';
 
   return (
-    <>
-      {/* light theme: pastel gradient cells */}
-      <div
-        aria-hidden
-        className={`pointer-events-none absolute top-0 h-[85%] w-[33%] overflow-hidden dark:hidden ${
-          left ? 'left-0' : 'right-0'
-        }`}
-      >
-        {stacks.map((stack, si) =>
-          stack.cells.map((cell, ci) => (
-            <span
-              key={`${si}-${ci}`}
-              className="absolute block"
-              style={{
-                [edge]: stack.col * CELL_W,
-                top: (stack.row + ci) * CELL_H,
-                width: CELL_W,
-                height: CELL_H,
-                background: `linear-gradient(to ${cell.d === 'r' ? 'right' : 'left'}, ${toAlpha(
-                  CELL_COLORS[cell.c],
-                  cell.a,
-                )}, transparent)`,
-              }}
-            />
-          )),
-        )}
-      </div>
-
-      {/* dark theme: staggered dark-teal bars */}
-      <div
-        aria-hidden
-        className={`pointer-events-none absolute top-0 hidden h-[85%] w-[33%] overflow-hidden dark:block ${
-          left ? 'left-0' : 'right-0'
-        }`}
-      >
-        {darkStacks.map((stack, si) =>
-          stack.bars.map((bar, bi) => (
-            <span
-              key={`${si}-${bi}`}
-              className="absolute block rounded-2xl border"
-              style={{
-                [edge]: stack.x + bar.x,
-                top: stack.y + bi * (DARK_BAR_H + 10),
-                width: bar.w,
-                height: DARK_BAR_H,
-                backgroundColor: DARK_BAR_FILL,
-                borderColor: DARK_BAR_BORDER,
-              }}
-            />
-          )),
-        )}
-      </div>
-    </>
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute top-0 h-[85%] w-[33%] overflow-hidden ${
+        left ? 'left-0' : 'right-0'
+      }`}
+    >
+      {stacks.map((stack, si) =>
+        stack.cells.map((cell, ci) => (
+          <span
+            key={`${si}-${ci}`}
+            className="absolute block"
+            style={{
+              [edge]: stack.col * CELL_W,
+              top: (stack.row + ci) * CELL_H,
+              width: CELL_W,
+              height: CELL_H,
+              background: `linear-gradient(to ${cell.d === 'r' ? 'right' : 'left'}, ${toAlpha(
+                CELL_COLORS[cell.c],
+                cell.a,
+              )}, transparent)`,
+            }}
+          />
+        )),
+      )}
+    </div>
   );
 }

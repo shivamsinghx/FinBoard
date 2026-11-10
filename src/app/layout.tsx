@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Inter } from "next/font/google";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import { ThemeScript } from "@/components/ThemeScript";
+import { Toaster } from "@/components/ui/toast";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const inter = Inter({
@@ -25,12 +25,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      suppressHydrationWarning
       className={`${inter.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ThemeScript />
-        <ThemeProvider>{children}</ThemeProvider>
+        <TooltipProvider>
+          <Toaster>{children}</Toaster>
+        </TooltipProvider>
       </body>
     </html>
   );

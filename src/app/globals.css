@@ -1,16 +1,25 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-/* Class-based dark mode (toggled on <html> by ThemeProvider/ThemeScript). */
+/*
+ * Kept so any `dark:` utilities inside vendored shadcn components stay
+ * permanently inert (nothing ever applies the .dark class). Light only.
+ */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Semantic tokens — utilities reference these runtime variables so the
- * .dark overrides below apply without regenerating classes.
- *
+ * Semantic tokens — utilities reference these runtime variables.
  * Yields e.g. bg-page, bg-surface, bg-raised, text-ink, text-muted,
  * text-faint, border-subtle, border-strong, bg-accent, text-accent,
  * bg-accent-soft, text-accent-contrast, text-up, text-down,
  * font-sans, font-display.
+ *
+ * The shadcn slots below map onto the same palette so components
+ * (bg-primary, bg-secondary, border-input, ring-ring…) match the app.
+ * NOTE: our --muted is a *text* color (#57534e); shadcn's muted slot
+ * is a *surface*. `bg-muted` inside components/ui was rewritten to
+ * `bg-raised` at install time — keep that convention when adding more.
  */
 @theme inline {
   /* surfaces */
@@ -38,12 +47,47 @@
   --color-up: var(--up);
   --color-down: var(--down);
 
+  /* shadcn tokens → our palette */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* shadcn radius scale */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
   /* fonts — values come from next/font variables on <html> */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-instrument), Georgia, "Times New Roman", serif;
+  /* shadcn component headings use the body font, like stock shadcn */
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Light (default): warm cream page, white cards, near-black text. */
+/* Light theme: warm cream page, white cards, near-black text. */
 :root {
   --page: #f7f4ee;
   --surface: #ffffff;
@@ -65,46 +109,52 @@
   --up: #059669;
   --down: #e11d48;
 
+  /* shadcn slots — same palette, shadcn's semantic names */
+  --background: var(--page);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-contrast);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--ink);
+  --muted-foreground: var(--muted);
+  --accent-foreground: var(--accent-contrast);
+  --destructive: var(--down);
+  --destructive-foreground: #ffffff;
+  --border: var(--subtle);
+  --input: var(--subtle);
+  --ring: var(--accent);
+  --chart-1: #059669;
+  --chart-2: #0d9488;
+  --chart-3: #b45309;
+  --chart-4: #64748b;
+  --chart-5: #e11d48;
+
+  --radius: 0.75rem;
+
   color-scheme: light;
 }
 
-/* Dark: deep navy — slate-950 page, slate-900 cards, slate-800 borders. */
-.dark {
-  --page: #020617;
-  --surface: #0f172a;
-  --raised: #1e293b;
-  --canvas: #020617;
-
-  --ink: #f1f5f9;
-  --muted: #94a3b8;
-  --faint: #64748b;
-
-  --subtle: #1e293b;
-  --strong: #334155;
-
-  --accent: #10b981;
-  --accent-hover: #34d399;
-  --accent-contrast: #052018;
-  --accent-soft: rgba(16, 185, 129, 0.15);
-
-  --up: #34d399;
-  --down: #fb7185;
-
-  color-scheme: dark;
-}
-
 @layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-color: var(--strong) transparent;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
   body {
-    @apply bg-page font-sans text-ink antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
     /* every number on the dashboard aligns in columns */
     font-variant-numeric: tabular-nums;
   }
 
   ::selection {
     @apply bg-accent-soft text-ink;
-  }
-
-  * {
-    scrollbar-color: var(--strong) transparent;
   }
 }

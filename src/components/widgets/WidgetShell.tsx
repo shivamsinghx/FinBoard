@@ -94,7 +94,7 @@ export function WidgetShell({ widget, query, empty, children }: WidgetShellProps
       </header>
 
       {stale && (
-        <div className="flex items-center gap-1.5 border-b border-amber-500/25 bg-amber-500/10 px-3 py-1 text-[10px] text-amber-700 dark:text-amber-300">
+        <div className="flex items-center gap-1.5 border-b border-amber-500/25 bg-amber-500/10 px-3 py-1 text-[10px] text-amber-700">
           <AlertTriangle className="size-3 shrink-0" aria-hidden />
           <span className="truncate">
             Showing last data ·{' '}

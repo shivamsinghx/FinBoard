@@ -8,8 +8,6 @@
 
 export type WidgetType = 'card' | 'table' | 'chart';
 
-export type ThemeMode = 'light' | 'dark';
-
 /** Financial data providers a widget can connect to. */
 export type ApiProvider = 'alpha-vantage' | 'finnhub' | 'indian-api' | 'custom';
 
@@ -158,7 +156,8 @@ export interface WidgetInstance {
 export interface DashboardExport {
   version: number;
   exportedAt: string;
-  theme: ThemeMode;
+  /** Legacy exports may carry a theme — parsed but ignored. */
+  theme?: string;
   widgets: WidgetInstance[];
 }
 

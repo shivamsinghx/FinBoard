@@ -4,7 +4,6 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { LayoutDashboard } from 'lucide-react';
 import { useDashboardStore } from '@/store/dashboardStore';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { ApiUrlComposer } from './ApiUrlComposer';
 
 export function Header() {
@@ -65,7 +64,6 @@ export function Header() {
         />
 
         <ApiUrlComposer size="nav" />
-        <ThemeToggle />
       </div>
     </header>
   );
