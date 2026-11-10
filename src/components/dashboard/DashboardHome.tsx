@@ -7,6 +7,7 @@ import { computeGridSpans } from '@/lib/gridLayout';
 import { useDashboardHydration, useDashboardStore } from '@/store/dashboardStore';
 import type { WidgetInstance } from '@/types/widget';
 import { CardWidget } from '@/components/widgets/CardWidget';
+import { TableWidget } from '@/components/widgets/TableWidget';
 import { DashboardToolbar } from './DashboardToolbar';
 import { EmptyHero } from './EmptyHero';
 import { Header } from './Header';
@@ -39,9 +40,10 @@ const ROW_SM: Record<number, string> = {
   10: 'sm:row-span-10', 11: 'sm:row-span-11', 12: 'sm:row-span-12',
 };
 
-/** Card is the only real renderer so far; table/chart keep the placeholder. */
+/** Card and table have real renderers; chart keeps the placeholder. */
 function Widget({ widget }: { widget: WidgetInstance }) {
   if (widget.type === 'card') return <CardWidget widget={widget} />;
+  if (widget.type === 'table') return <TableWidget widget={widget} />;
   return <WidgetCard widget={widget} />;
 }
 
