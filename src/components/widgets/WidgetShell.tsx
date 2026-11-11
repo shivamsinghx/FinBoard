@@ -19,7 +19,9 @@ import {
   Settings2,
   Trash2,
 } from 'lucide-react';
+import Link from 'next/link';
 import type { WidgetDataResult } from '@/hooks/useWidgetData';
+import { docErrorSlug } from '@/lib/docsSections';
 import { formatInterval } from '@/lib/formatters';
 import { FRIENDLY_ERRORS } from '@/lib/proxyErrors';
 import { useDashboardStore } from '@/store/dashboardStore';
@@ -232,6 +234,14 @@ export function WidgetShell({ widget, query, empty, headerExtra, children }: Wid
               ? 'API limit reached — retrying in 60s.'
               : FRIENDLY_ERRORS[errorCode ?? 'NETWORK']}
           </span>
+          {errorCode && (
+            <Link
+              href={`/docs#${docErrorSlug(errorCode)}`}
+              className="ml-auto shrink-0 font-medium underline-offset-2 hover:underline"
+            >
+              Why?
+            </Link>
+          )}
         </div>
       )}
 
@@ -380,9 +390,16 @@ function ErrorState({
           {detail}
         </p>
       )}
-      <Button variant="outline" size="sm" className="mt-1" onClick={onRetry}>
-        Retry
-      </Button>
+      <div className="mt-1 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          Retry
+        </Button>
+        {code && (
+          <Button variant="ghost" size="sm" render={<Link href={`/docs#${docErrorSlug(code)}`} />}>
+            Docs
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

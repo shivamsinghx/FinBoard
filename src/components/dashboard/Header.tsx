@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
+  BookOpen,
   ChevronDown,
   Download,
   FilePlus2,
@@ -20,6 +22,7 @@ import {
   refreshAllWidgets,
 } from '@/lib/dashboardActions';
 import { TEMPLATES } from '@/lib/templates';
+import { DOC_SECTIONS } from '@/lib/docsSections';
 import { useDashboardStore } from '@/store/dashboardStore';
 import { Button } from '@/components/ui/button';
 import {
@@ -77,6 +80,7 @@ function TemplateSummary({
 }
 
 export function Header() {
+  const router = useRouter();
   const requestTemplate = useDashboardStore((s) => s.requestTemplate);
   const openAddWidget = useDashboardStore((s) => s.openAddWidget);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -148,9 +152,9 @@ export function Header() {
         >
           How it works
         </button>
-        <a href="#docs" className="text-sm text-ink/85 transition-colors hover:text-ink">
+        <Link href="/docs" className="text-sm text-ink/85 transition-colors hover:text-ink">
           Docs
-        </a>
+        </Link>
       </nav>
 
       <div className="flex items-center gap-3">
@@ -238,9 +242,9 @@ export function Header() {
                 >
                   How it works
                 </button>
-                <a href="#docs" onClick={() => setMenuOpen(false)} className="block rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised">
+                <Link href="/docs" onClick={() => setMenuOpen(false)} className="block rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised">
                   Docs
-                </a>
+                </Link>
               </div>
             </div>
           </SheetContent>
@@ -282,6 +286,20 @@ export function Header() {
               >
                 <LayoutTemplate className="size-4" aria-hidden />
                 Load template: {t.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandGroup heading="Docs">
+            {DOC_SECTIONS.map((s) => (
+              <CommandItem
+                key={s.id}
+                keywords={s.keywords}
+                onSelect={paletteAction(() =>
+                  router.push(`/docs#${s.id}`),
+                )}
+              >
+                <BookOpen className="size-4" aria-hidden />
+                Docs: {s.title}
               </CommandItem>
             ))}
           </CommandGroup>
