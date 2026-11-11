@@ -114,16 +114,19 @@ export function Header() {
 
       <nav
         aria-label="Primary"
-        className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex"
+        className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-3 md:flex"
       >
         <button
           type="button"
           onClick={() => setHowOpen(true)}
-          className="text-sm text-ink/85 transition-colors hover:text-ink"
+          className="rounded-full border border-subtle bg-surface px-4 py-1.5 text-sm text-ink/85 shadow-[0_1px_2px_rgba(28,25,23,0.06)] transition-all duration-300 hover:border-accent/60 hover:text-ink hover:shadow-[0_2px_6px_rgba(28,25,23,0.08),0_0_20px_rgba(5,150,105,0.3),0_0_44px_rgba(5,150,105,0.15)]"
         >
           How it works
         </button>
-        <Link href="/docs" className="text-sm text-ink/85 transition-colors hover:text-ink">
+        <Link
+          href="/docs"
+          className="rounded-full border border-subtle bg-surface px-4 py-1.5 text-sm text-ink/85 shadow-[0_1px_2px_rgba(28,25,23,0.06)] transition-all duration-300 hover:border-blue-500/60 hover:text-ink hover:shadow-[0_2px_6px_rgba(28,25,23,0.08),0_0_20px_rgba(59,130,246,0.3),0_0_44px_rgba(59,130,246,0.15)]"
+        >
           Docs
         </Link>
       </nav>
