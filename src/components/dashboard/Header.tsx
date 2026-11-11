@@ -45,6 +45,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ApiUrlComposer } from './ApiUrlComposer';
+import { HowItWorksDialog } from './HowItWorksDialog';
 
 /** Rich template entry shared by the dropdown and the palette. */
 function TemplateSummary({
@@ -71,6 +72,7 @@ export function Header() {
   const openAddWidget = useDashboardStore((s) => s.openAddWidget);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -90,7 +92,11 @@ export function Header() {
 
   return (
     <header className="relative z-20 mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-6">
-      <Link href="/" className="flex items-center gap-2">
+      <Link
+        href="/"
+        className="flex items-center gap-2"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
         <LayoutDashboard className="size-5 text-ink" aria-hidden />
         <span className="text-[22px] font-medium tracking-tight">FinBoard</span>
       </Link>
@@ -126,9 +132,13 @@ export function Header() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        <a href="#how-it-works" className="text-sm text-ink/85 transition-colors hover:text-ink">
+        <button
+          type="button"
+          onClick={() => setHowOpen(true)}
+          className="text-sm text-ink/85 transition-colors hover:text-ink"
+        >
           How it works
-        </a>
+        </button>
         <a href="#docs" className="text-sm text-ink/85 transition-colors hover:text-ink">
           Docs
         </a>
@@ -209,9 +219,16 @@ export function Header() {
                 ))}
               </div>
               <div className="mt-3 border-t border-subtle/60 pt-3">
-                <a href="#how-it-works" onClick={() => setMenuOpen(false)} className="block rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setHowOpen(true);
+                  }}
+                  className="block w-full rounded-lg px-2 py-2 text-left text-sm text-ink/85 transition-colors hover:bg-raised"
+                >
                   How it works
-                </a>
+                </button>
                 <a href="#docs" onClick={() => setMenuOpen(false)} className="block rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised">
                   Docs
                 </a>
@@ -261,6 +278,7 @@ export function Header() {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+      <HowItWorksDialog open={howOpen} onOpenChange={setHowOpen} />
     </header>
   );
 }
