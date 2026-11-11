@@ -310,7 +310,7 @@ export function TableWidget({ widget }: { widget: WidgetInstance }) {
                   key={col.id}
                   checked={col.getIsVisible()}
                   onCheckedChange={(v) => col.toggleVisibility(!!v)}
-                  onSelect={(e) => e.preventDefault()}
+                  closeOnClick={false}
                 >
                   {fieldById.get(col.id)?.label ?? col.id}
                 </DropdownMenuCheckboxItem>

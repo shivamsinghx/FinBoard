@@ -576,7 +576,7 @@ const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: string }[] = [
   {
     code: 'INVALID_KEY',
     meaning: 'The provider rejected authentication — bad, missing or plan-restricted key.',
-    fix: 'Check the key in your URL or .env.local. Remember Alpha Vantage’s demo key only works on a few endpoints (e.g. IBM).',
+    fix: 'If you put a key in the widget’s URL yourself, check it there. Otherwise the key is injected server-side from the deployment environment (FINNHUB_API_KEY / ALPHA_VANTAGE_API_KEY) — it’s a hosting-side setting, not fixable from the browser. Alpha Vantage’s demo key only works on a few endpoints (e.g. IBM).',
   },
   {
     code: 'RATE_LIMIT',

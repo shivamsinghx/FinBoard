@@ -114,7 +114,7 @@ export function DashboardToolbar() {
             {TEMPLATES.map((t) => (
               <DropdownMenuItem
                 key={t.id}
-                onSelect={() => requestTemplate(t.id)}
+                onClick={() => requestTemplate(t.id)}
               >
                 <span className="flex flex-col gap-0.5 py-0.5">
                   <span className="text-sm font-medium">{t.name}</span>

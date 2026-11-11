@@ -172,7 +172,7 @@ const INDIAN_MARKETS: WidgetInstance[] = [
   w('tpl-in-watch', 'card', { x: 0, y: 0, w: 4, h: 6 }, {
     ...base(
       'alpha-vantage',
-      avQuery('GLOBAL_QUOTE', 'RELIANCE.BSE'),
+      avKeyed('function=GLOBAL_QUOTE&symbol=RELIANCE.BSE'),
       'BSE watchlist',
     ),
     card: {
@@ -182,7 +182,7 @@ const INDIAN_MARKETS: WidgetInstance[] = [
     },
   }),
   w('tpl-in-quote', 'card', { x: 4, y: 0, w: 3, h: 4 }, {
-    ...base('alpha-vantage', avQuery('GLOBAL_QUOTE', 'RELIANCE.BSE'), 'RELIANCE', [
+    ...base('alpha-vantage', avKeyed('function=GLOBAL_QUOTE&symbol=RELIANCE.BSE'), 'RELIANCE', [
       F('Global Quote.05. price', 'Price', 'currency'),
       F('Global Quote.10. change percent', 'Change %', 'percent'),
     ]),
@@ -191,7 +191,7 @@ const INDIAN_MARKETS: WidgetInstance[] = [
   w('tpl-in-chart', 'chart', { x: 7, y: 0, w: 5, h: 6 }, {
     ...base(
       'alpha-vantage',
-      avQuery('TIME_SERIES_DAILY', 'RELIANCE.BSE'),
+      avKeyed('function=TIME_SERIES_DAILY&symbol=RELIANCE.BSE'),
       'RELIANCE · Daily',
       [],
       300,
@@ -205,7 +205,7 @@ const INDIAN_MARKETS: WidgetInstance[] = [
     },
   }),
   w('tpl-in-quote2', 'card', { x: 4, y: 4, w: 3, h: 4 }, {
-    ...base('alpha-vantage', avQuery('GLOBAL_QUOTE', 'TCS.BSE'), 'TCS', [
+    ...base('alpha-vantage', avKeyed('function=GLOBAL_QUOTE&symbol=TCS.BSE'), 'TCS', [
       F('Global Quote.05. price', 'Price', 'currency'),
       F('Global Quote.10. change percent', 'Change %', 'percent'),
     ]),
