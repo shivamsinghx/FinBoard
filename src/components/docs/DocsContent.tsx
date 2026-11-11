@@ -9,7 +9,6 @@ import {
   LineChart as LineChartIcon,
   Link2,
   RefreshCw,
-  ShieldCheck,
   Table2,
   Timer,
   Wallet,
@@ -247,39 +246,7 @@ function SupportedApis() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 3 — API keys & security                                             */
-/* ------------------------------------------------------------------ */
-
-function ApiKeys() {
-  return (
-    <>
-      <p>
-        Get free keys at the providers:{' '}
-        <Code>finnhub.io</Code> (dashboard → API key) and{' '}
-        <Code>alphavantage.co</Code> (claim free API key). Drop them in{' '}
-        <Code>.env.local</Code> at the repo root:
-      </p>
-      <DocCode
-        title=".env.local"
-        lang="bash"
-        code={'FINNHUB_API_KEY=your_finnhub_key\nALPHA_VANTAGE_API_KEY=your_av_key'}
-      />
-      <p className="flex gap-2.5">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
-        <span>
-          Widgets never hold your keys. Every request goes through{' '}
-          <Code>/api/proxy</Code>, which checks the host is public, injects the
-          matching env key into the upstream URL server-side, and returns only
-          the JSON body. Keys never reach the browser — widget headers show
-          endpoints with the query string stripped.
-        </span>
-      </p>
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* 4 — Widget types                                                    */
+/* 3 — Widget types                                                    */
 /* ------------------------------------------------------------------ */
 
 /** Static mini quote card in real widget styling. */
@@ -396,7 +363,7 @@ function WidgetTypes() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 5 — Formatting playground                                           */
+/* 4 — Formatting playground                                           */
 /* ------------------------------------------------------------------ */
 
 function Formatting() {
@@ -415,7 +382,7 @@ function Formatting() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 6 — Refresh, caching & rate limits                                  */
+/* 5 — Refresh, caching & rate limits                                  */
 /* ------------------------------------------------------------------ */
 
 function PipeNode({ title, sub }: { title: string; sub: string }) {
@@ -480,7 +447,7 @@ function RefreshSection() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 7 — Export, import & templates                                      */
+/* 6 — Export, import & templates                                      */
 /* ------------------------------------------------------------------ */
 
 const EXPORT_EXAMPLE = `{
@@ -527,7 +494,7 @@ function ExportTemplates() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 8 — Keyboard shortcuts                                              */
+/* 7 — Keyboard shortcuts                                              */
 /* ------------------------------------------------------------------ */
 
 const SHORTCUTS: { keys: string[]; what: string }[] = [
@@ -564,7 +531,7 @@ function Shortcuts() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 9 — Troubleshooting                                                 */
+/* 8 — Troubleshooting                                                 */
 /* ------------------------------------------------------------------ */
 
 const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: string }[] = [
@@ -572,11 +539,6 @@ const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: string }[] = [
     code: 'INVALID_URL',
     meaning: 'The URL was rejected before any request — it isn’t public http(s).',
     fix: 'Use a full https:// URL. Embedded credentials (user:pass@) and localhost/private-network hosts are blocked by the proxy.',
-  },
-  {
-    code: 'INVALID_KEY',
-    meaning: 'The provider rejected authentication — bad, missing or plan-restricted key.',
-    fix: 'If you put a key in the widget’s URL yourself, check it there. Otherwise the key is injected server-side from the deployment environment (FINNHUB_API_KEY / ALPHA_VANTAGE_API_KEY) — it’s a hosting-side setting, not fixable from the browser. Alpha Vantage’s demo key only works on a few endpoints (e.g. IBM).',
   },
   {
     code: 'RATE_LIMIT',
@@ -652,33 +614,30 @@ export function DocsContent() {
       <Section id="supported-apis" index={2} title="Supported APIs">
         <SupportedApis />
       </Section>
-      <Section id="api-keys" index={3} title="API keys & security">
-        <ApiKeys />
-      </Section>
-      <Section id="widget-types" index={4} title="Widget types">
+      <Section id="widget-types" index={3} title="Widget types">
         <WidgetTypes />
       </Section>
-      <Section id="formatting" index={5} title="Formatting playground">
+      <Section id="formatting" index={4} title="Formatting playground">
         <Formatting />
       </Section>
       <Section
         id="refresh-caching"
-        index={6}
+        index={5}
         title="Refresh, caching & rate limits"
       >
         <RefreshSection />
       </Section>
       <Section
         id="export-templates"
-        index={7}
+        index={6}
         title="Export, import & templates"
       >
         <ExportTemplates />
       </Section>
-      <Section id="shortcuts" index={8} title="Keyboard shortcuts">
+      <Section id="shortcuts" index={7} title="Keyboard shortcuts">
         <Shortcuts />
       </Section>
-      <Section id="troubleshooting" index={9} title="Troubleshooting">
+      <Section id="troubleshooting" index={8} title="Troubleshooting">
         <Troubleshooting />
       </Section>
     </article>
