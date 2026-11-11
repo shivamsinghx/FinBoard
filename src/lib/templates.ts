@@ -88,6 +88,9 @@ const AV_DAILY_OHLC = {
 
 const avQuery = (fn: string, symbol: string, key = 'demo') =>
   `https://www.alphavantage.co/query?function=${fn}&symbol=${symbol}&apikey=${key}`;
+/** AV endpoint without apikey — the proxy injects the configured key. */
+const avKeyed = (params: string) =>
+  `https://www.alphavantage.co/query?${params}`;
 const finnhub = (path: string) => `https://finnhub.io/api/v1/${path}`;
 const coinbaseSpot = (pair: string) =>
   `https://api.coinbase.com/v2/prices/${pair}/spot`;
@@ -257,6 +260,178 @@ const CRYPTO: WidgetInstance[] = [
   }),
 ];
 
+/** Finnhub quote fields — shared by every quote/watchlist card. */
+const FH_QUOTE_FIELDS = [
+  F('c', 'Price', 'currency'),
+  F('d', 'Change', 'currency'),
+  F('dp', 'Change %', 'percent'),
+];
+
+const MAG_7: WidgetInstance[] = [
+  w('tpl-m7-watch', 'card', { x: 0, y: 0, w: 4, h: 7 }, {
+    ...base('finnhub', finnhub('quote?symbol=AAPL'), 'Magnificent 7'),
+    card: {
+      kind: 'watchlist',
+      symbols: ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'],
+      columns: FINNHUB_QUOTE_COLUMNS,
+    },
+  }),
+  w('tpl-m7-nvda', 'card', { x: 4, y: 0, w: 3, h: 4 }, {
+    ...base('finnhub', finnhub('quote?symbol=NVDA'), 'NVDA', FH_QUOTE_FIELDS),
+    card: { kind: 'quote', symbols: [] },
+  }),
+  w('tpl-m7-meta', 'card', { x: 7, y: 0, w: 3, h: 4 }, {
+    ...base('finnhub', finnhub('quote?symbol=META'), 'META', FH_QUOTE_FIELDS),
+    card: { kind: 'quote', symbols: [] },
+  }),
+  w('tpl-m7-metrics', 'card', { x: 10, y: 0, w: 3, h: 5 }, {
+    ...base(
+      'finnhub',
+      finnhub('stock/metric?symbol=NVDA&metric=all'),
+      'NVDA metrics',
+      [
+        F('metric.marketCapitalization', 'Market cap', 'number'),
+        F('metric.peNormalizedAnnual', 'P/E (norm)', 'number'),
+        F('metric.52WeekHigh', '52w high', 'currency'),
+        F('metric.52WeekLow', '52w low', 'currency'),
+        F('metric.beta', 'Beta', 'number'),
+      ],
+      300,
+    ),
+    card: { kind: 'financials', symbols: [] },
+  }),
+  w('tpl-m7-chart', 'chart', { x: 4, y: 5, w: 6, h: 6 }, {
+    ...base(
+      'alpha-vantage',
+      avKeyed('function=TIME_SERIES_DAILY&symbol=NVDA'),
+      'NVDA · Daily',
+      [],
+      300,
+    ),
+    chart: {
+      kind: 'candle',
+      interval: 'daily',
+      listPath: 'Time Series (Daily)',
+      xField: 'date',
+      ohlc: AV_DAILY_OHLC,
+    },
+  }),
+];
+
+const SECTOR_PULSE: WidgetInstance[] = [
+  w('tpl-sp-spy', 'card', { x: 0, y: 0, w: 3, h: 4 }, {
+    ...base('finnhub', finnhub('quote?symbol=SPY'), 'SPY', FH_QUOTE_FIELDS),
+    card: { kind: 'quote', symbols: [] },
+  }),
+  w('tpl-sp-index', 'card', { x: 3, y: 0, w: 4, h: 5 }, {
+    ...base('finnhub', finnhub('quote?symbol=SPY'), 'Index ETFs'),
+    card: {
+      kind: 'watchlist',
+      symbols: ['SPY', 'QQQ', 'DIA', 'IWM'],
+      columns: FINNHUB_QUOTE_COLUMNS,
+    },
+  }),
+  w('tpl-sp-sectors', 'card', { x: 7, y: 0, w: 5, h: 7 }, {
+    ...base('finnhub', finnhub('quote?symbol=XLK'), 'Sector ETFs'),
+    card: {
+      kind: 'watchlist',
+      symbols: ['XLK', 'XLF', 'XLE', 'XLV', 'XLI', 'XLP'],
+      columns: FINNHUB_QUOTE_COLUMNS,
+    },
+  }),
+  w('tpl-sp-gainers', 'card', { x: 0, y: 5, w: 4, h: 6 }, {
+    ...base(
+      'alpha-vantage',
+      'https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=demo',
+      'Top gainers',
+      [],
+      300,
+    ),
+    card: {
+      kind: 'gainers',
+      symbols: [],
+      listPath: 'top_gainers',
+      columns: {
+        name: 'ticker',
+        price: 'price',
+        change: 'change_percentage',
+      },
+    },
+  }),
+];
+
+/** AV realtime FX rate — key injected by the proxy. */
+const AV_FX_RATE_FIELDS = [
+  F('Realtime Currency Exchange Rate.5. Exchange Rate', 'Rate', 'number'),
+  F('Realtime Currency Exchange Rate.8. Bid Price', 'Bid', 'number'),
+  F('Realtime Currency Exchange Rate.9. Ask Price', 'Ask', 'number'),
+];
+const fxRate = (from: string, to: string) =>
+  avKeyed(`function=CURRENCY_EXCHANGE_RATE&from_currency=${from}&to_currency=${to}`);
+
+const FX_MAJORS: WidgetInstance[] = [
+  w('tpl-fx-eur', 'card', { x: 0, y: 0, w: 4, h: 4 }, {
+    ...base('alpha-vantage', fxRate('EUR', 'USD'), 'EUR / USD', AV_FX_RATE_FIELDS, 120),
+    card: { kind: 'quote', symbols: [] },
+  }),
+  w('tpl-fx-gbp', 'card', { x: 4, y: 0, w: 4, h: 4 }, {
+    ...base('alpha-vantage', fxRate('GBP', 'USD'), 'GBP / USD', AV_FX_RATE_FIELDS, 120),
+    card: { kind: 'quote', symbols: [] },
+  }),
+  w('tpl-fx-jpy', 'card', { x: 8, y: 0, w: 4, h: 4 }, {
+    ...base('alpha-vantage', fxRate('USD', 'JPY'), 'USD / JPY', AV_FX_RATE_FIELDS, 120),
+    card: { kind: 'quote', symbols: [] },
+  }),
+  w('tpl-fx-chart', 'chart', { x: 0, y: 4, w: 8, h: 6 }, {
+    ...base(
+      'alpha-vantage',
+      avKeyed('function=FX_DAILY&from_symbol=EUR&to_symbol=USD'),
+      'EUR / USD · Daily',
+      [],
+      300,
+    ),
+    chart: {
+      kind: 'candle',
+      interval: 'daily',
+      listPath: 'Time Series FX (Daily)',
+      xField: 'date',
+      ohlc: AV_DAILY_OHLC,
+    },
+  }),
+];
+
+/** AV commodity series — `data` rows of {date, value}; weekly keeps the response small. */
+const avCommodity = (fn: string) =>
+  avKeyed(`function=${fn}&interval=weekly`);
+const COMMODITY_LINE = (label: string) => [
+  F('value', label, 'number'),
+];
+
+const COMMODITIES: WidgetInstance[] = [
+  w('tpl-co-wti', 'chart', { x: 0, y: 0, w: 4, h: 5 }, {
+    ...base('alpha-vantage', avCommodity('WTI'), 'WTI crude · weekly', COMMODITY_LINE('WTI'), 900),
+    chart: { kind: 'line', interval: 'weekly', listPath: 'data', xField: 'date' },
+  }),
+  w('tpl-co-gas', 'chart', { x: 4, y: 0, w: 4, h: 5 }, {
+    ...base('alpha-vantage', avCommodity('NATURAL_GAS'), 'Natural gas · weekly', COMMODITY_LINE('Nat. gas'), 900),
+    chart: { kind: 'line', interval: 'weekly', listPath: 'data', xField: 'date' },
+  }),
+  w('tpl-co-copper', 'chart', { x: 8, y: 0, w: 4, h: 5 }, {
+    ...base('alpha-vantage', avCommodity('COPPER'), 'Copper · weekly', COMMODITY_LINE('Copper'), 900),
+    chart: { kind: 'line', interval: 'weekly', listPath: 'data', xField: 'date' },
+  }),
+  w('tpl-co-table', 'table', { x: 0, y: 5, w: 6, h: 6 }, {
+    ...base(
+      'alpha-vantage',
+      avCommodity('WTI'),
+      'WTI crude · recent',
+      [F('date', 'Date', 'date'), F('value', 'USD / barrel', 'number')],
+      900,
+    ),
+    table: { pageSize: 10, sortDir: 'desc', sortField: 'date', listPath: 'data' },
+  }),
+];
+
 export const TEMPLATES: DashboardTemplate[] = [
   {
     id: 'us-stocks',
@@ -275,6 +450,34 @@ export const TEMPLATES: DashboardTemplate[] = [
     name: 'Crypto',
     description: 'Spot prices, market-cap table and BTC daily candles.',
     payload: exportOf(CRYPTO),
+  },
+  {
+    id: 'mag-7',
+    name: 'Magnificent 7',
+    description:
+      'Mega-cap watchlist, NVDA and META quotes, metrics and a candle chart.',
+    payload: exportOf(MAG_7),
+  },
+  {
+    id: 'sector-pulse',
+    name: 'Sector pulse',
+    description:
+      'Index and sector ETF watchlists, an SPY quote and top gainers.',
+    payload: exportOf(SECTOR_PULSE),
+  },
+  {
+    id: 'fx-majors',
+    name: 'FX majors',
+    description:
+      'EUR/USD, GBP/USD and USD/JPY rates plus a daily candle chart. Needs an Alpha Vantage key.',
+    payload: exportOf(FX_MAJORS),
+  },
+  {
+    id: 'commodities',
+    name: 'Commodities',
+    description:
+      'Weekly WTI, natural gas and copper charts with a recent-price table. Needs an Alpha Vantage key.',
+    payload: exportOf(COMMODITIES),
   },
 ];
 
