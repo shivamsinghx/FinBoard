@@ -10,8 +10,8 @@ import {
 /**
  * Prebuilt dashboards as full DashboardExport payloads — loading one is
  * exactly an import, so it goes through the same validation path.
- * Endpoints are limited to what the proxy can serve: Coinbase spot and
- * CryptoCompare (keyless), Finnhub + Alpha Vantage (key injected
+ * Endpoints are limited to what the proxy can serve: Coinbase and
+ * Binance (keyless), Finnhub + Alpha Vantage (key injected
  * server-side, or AV's demo key where it works).
  */
 
@@ -226,37 +226,36 @@ const CRYPTO: WidgetInstance[] = [
     ]),
     card: { kind: 'quote', symbols: [] },
   }),
-  w('tpl-crypto-chart', 'chart', { x: 6, y: 0, w: 6, h: 6 }, {
+  w('tpl-crypto-watch', 'card', { x: 6, y: 0, w: 6, h: 5 }, {
     ...base(
       'custom',
-      'https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=90',
-      'BTC · Daily candles',
+      'https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT',
+      'USDT watchlist',
       [],
-      300,
+      60,
     ),
-    chart: {
-      kind: 'candle',
-      interval: 'daily',
-      listPath: 'Data.Data',
-      xField: 'time',
-      ohlc: { open: 'open', high: 'high', low: 'low', close: 'close' },
+    card: {
+      kind: 'watchlist',
+      symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'],
+      columns: { price: 'lastPrice', change: 'priceChangePercent' },
     },
   }),
   w('tpl-crypto-table', 'table', { x: 0, y: 4, w: 8, h: 7 }, {
     ...base(
       'custom',
-      'https://min-api.cryptocompare.com/data/top/mktcapfull?limit=25&tsym=USD',
-      'Top crypto by market cap',
+      'https://api.binance.com/api/v3/ticker/24hr',
+      'All Binance tickers',
       [
-        F('CoinInfo.FullName', 'Name', 'text'),
-        F('CoinInfo.Name', 'Symbol', 'text'),
-        F('RAW.USD.PRICE', 'Price', 'currency'),
-        F('RAW.USD.CHANGEPCT24HOUR', 'Change %', 'percent'),
-        F('RAW.USD.MKTCAP', 'Market cap', 'number'),
+        F('symbol', 'Symbol', 'text'),
+        F('lastPrice', 'Price', 'number'),
+        F('priceChangePercent', 'Change %', 'percent'),
+        F('highPrice', '24h high', 'number'),
+        F('lowPrice', '24h low', 'number'),
+        F('quoteVolume', 'Quote vol', 'number'),
       ],
-      300,
+      120,
     ),
-    table: { pageSize: 10, sortDir: 'desc', sortField: 'RAW.USD.MKTCAP', listPath: 'Data' },
+    table: { pageSize: 10, sortDir: 'desc', sortField: 'quoteVolume', listPath: '' },
   }),
 ];
 
@@ -300,20 +299,23 @@ const MAG_7: WidgetInstance[] = [
     ),
     card: { kind: 'financials', symbols: [] },
   }),
-  w('tpl-m7-chart', 'chart', { x: 4, y: 5, w: 6, h: 6 }, {
+  w('tpl-m7-gainers', 'card', { x: 4, y: 5, w: 5, h: 6 }, {
     ...base(
       'alpha-vantage',
-      avKeyed('function=TIME_SERIES_DAILY&symbol=NVDA'),
-      'NVDA · Daily',
+      'https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=demo',
+      'Top gainers',
       [],
       300,
     ),
-    chart: {
-      kind: 'candle',
-      interval: 'daily',
-      listPath: 'Time Series (Daily)',
-      xField: 'date',
-      ohlc: AV_DAILY_OHLC,
+    card: {
+      kind: 'gainers',
+      symbols: [],
+      listPath: 'top_gainers',
+      columns: {
+        name: 'ticker',
+        price: 'price',
+        change: 'change_percentage',
+      },
     },
   }),
 ];
@@ -360,43 +362,31 @@ const SECTOR_PULSE: WidgetInstance[] = [
   }),
 ];
 
-/** AV realtime FX rate — key injected by the proxy. */
-const AV_FX_RATE_FIELDS = [
-  F('Realtime Currency Exchange Rate.5. Exchange Rate', 'Rate', 'number'),
-  F('Realtime Currency Exchange Rate.8. Bid Price', 'Bid', 'number'),
-  F('Realtime Currency Exchange Rate.9. Ask Price', 'Ask', 'number'),
-];
-const fxRate = (from: string, to: string) =>
-  avKeyed(`function=CURRENCY_EXCHANGE_RATE&from_currency=${from}&to_currency=${to}`);
+/**
+ * Coinbase exchange-rates — rates for 1 unit of the base across fiat +
+ * crypto, keyless. A "USD rates" card reads data.rates.EUR etc.
+ */
+const cbRates = (base: string) =>
+  `https://api.coinbase.com/v2/exchange-rates?currency=${base}`;
+const rateFields = (...codes: string[]) =>
+  codes.map((c) => F(`data.rates.${c}`, c, 'number'));
 
 const FX_MAJORS: WidgetInstance[] = [
-  w('tpl-fx-eur', 'card', { x: 0, y: 0, w: 4, h: 4 }, {
-    ...base('alpha-vantage', fxRate('EUR', 'USD'), 'EUR / USD', AV_FX_RATE_FIELDS, 120),
+  w('tpl-fx-usd', 'card', { x: 0, y: 0, w: 3, h: 4 }, {
+    ...base('custom', cbRates('USD'), 'USD rates', rateFields('EUR', 'GBP', 'JPY', 'INR'), 120),
     card: { kind: 'quote', symbols: [] },
   }),
-  w('tpl-fx-gbp', 'card', { x: 4, y: 0, w: 4, h: 4 }, {
-    ...base('alpha-vantage', fxRate('GBP', 'USD'), 'GBP / USD', AV_FX_RATE_FIELDS, 120),
+  w('tpl-fx-eur', 'card', { x: 3, y: 0, w: 3, h: 4 }, {
+    ...base('custom', cbRates('EUR'), 'EUR rates', rateFields('USD', 'GBP', 'JPY', 'INR'), 120),
     card: { kind: 'quote', symbols: [] },
   }),
-  w('tpl-fx-jpy', 'card', { x: 8, y: 0, w: 4, h: 4 }, {
-    ...base('alpha-vantage', fxRate('USD', 'JPY'), 'USD / JPY', AV_FX_RATE_FIELDS, 120),
+  w('tpl-fx-inr', 'card', { x: 6, y: 0, w: 3, h: 4 }, {
+    ...base('custom', cbRates('INR'), 'INR rates', rateFields('USD', 'EUR', 'GBP', 'JPY'), 120),
     card: { kind: 'quote', symbols: [] },
   }),
-  w('tpl-fx-chart', 'chart', { x: 0, y: 4, w: 8, h: 6 }, {
-    ...base(
-      'alpha-vantage',
-      avKeyed('function=FX_DAILY&from_symbol=EUR&to_symbol=USD'),
-      'EUR / USD · Daily',
-      [],
-      300,
-    ),
-    chart: {
-      kind: 'candle',
-      interval: 'daily',
-      listPath: 'Time Series FX (Daily)',
-      xField: 'date',
-      ohlc: AV_DAILY_OHLC,
-    },
+  w('tpl-fx-btc', 'card', { x: 9, y: 0, w: 3, h: 4 }, {
+    ...base('custom', cbRates('BTC'), 'BTC rates', rateFields('USD', 'EUR', 'INR', 'GBP'), 120),
+    card: { kind: 'quote', symbols: [] },
   }),
 ];
 
@@ -442,20 +432,22 @@ export const TEMPLATES: DashboardTemplate[] = [
   {
     id: 'indian-markets',
     name: 'Indian markets',
-    description: 'BSE quotes, a watchlist and a Reliance candle chart.',
+    description:
+      'BSE quotes, a watchlist and a Reliance candle chart. Needs an Alpha Vantage key.',
     payload: exportOf(INDIAN_MARKETS),
   },
   {
     id: 'crypto',
     name: 'Crypto',
-    description: 'Spot prices, market-cap table and BTC daily candles.',
+    description:
+      'Coinbase spot prices, a Binance USDT watchlist and every Binance ticker in a sortable table.',
     payload: exportOf(CRYPTO),
   },
   {
     id: 'mag-7',
     name: 'Magnificent 7',
     description:
-      'Mega-cap watchlist, NVDA and META quotes, metrics and a candle chart.',
+      'Mega-cap watchlist, NVDA and META quotes, metrics and top gainers.',
     payload: exportOf(MAG_7),
   },
   {
@@ -469,7 +461,7 @@ export const TEMPLATES: DashboardTemplate[] = [
     id: 'fx-majors',
     name: 'FX majors',
     description:
-      'EUR/USD, GBP/USD and USD/JPY rates plus a daily candle chart. Needs an Alpha Vantage key.',
+      'USD, EUR, INR and BTC exchange-rate cards via Coinbase — no key needed.',
     payload: exportOf(FX_MAJORS),
   },
   {

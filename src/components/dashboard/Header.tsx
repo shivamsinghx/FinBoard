@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   BookOpen,
-  ChevronDown,
   Download,
   FilePlus2,
   LayoutDashboard,
@@ -33,12 +32,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Kbd } from '@/components/ui/kbd';
 import {
   Sheet,
@@ -48,6 +41,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ApiUrlComposer } from './ApiUrlComposer';
 
 /** The walkthrough is heavy (motion + four scenes) — load on demand. */
@@ -59,33 +62,17 @@ const HowItWorksDialog = dynamic(
   { ssr: false },
 );
 
-/** Rich template entry shared by the dropdown and the palette. */
-function TemplateSummary({
-  name,
-  description,
-  count,
-}: {
-  name: string;
-  description: string;
-  count: number;
-}) {
-  return (
-    <span className="flex flex-col gap-0.5 py-0.5">
-      <span className="text-sm font-medium text-ink">{name}</span>
-      <span className="text-[11px] leading-snug text-faint">
-        {description} · {count} {count === 1 ? 'widget' : 'widgets'}
-      </span>
-    </span>
-  );
-}
-
 export function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const requestTemplate = useDashboardStore((s) => s.requestTemplate);
   const openAddWidget = useDashboardStore((s) => s.openAddWidget);
+  const resetDashboard = useDashboardStore((s) => s.resetDashboard);
+  const widgetCount = useDashboardStore((s) => s.widgets.length);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -108,7 +95,18 @@ export function Header() {
       <Link
         href="/"
         className="flex items-center gap-2"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick={(e) => {
+          if (pathname === '/' && widgetCount > 0) {
+            // Going "home" means the hero — which requires clearing the
+            // board, so confirm before wiping anything.
+            e.preventDefault();
+            setResetOpen(true);
+            return;
+          }
+          if (pathname === '/') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }}
       >
         <LayoutDashboard className="size-5 text-ink" aria-hidden />
         <span className="text-[22px] font-medium tracking-tight">FinBoard</span>
@@ -118,33 +116,6 @@ export function Header() {
         aria-label="Primary"
         className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex"
       >
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                className="flex items-center gap-1 text-sm text-ink/85 transition-colors hover:text-ink"
-              />
-            }
-          >
-            Templates
-            <ChevronDown className="size-3.5 opacity-60" aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-72">
-            {TEMPLATES.map((t) => (
-              <DropdownMenuItem
-                key={t.id}
-                onSelect={() => requestTemplate(t.id)}
-              >
-                <TemplateSummary
-                  name={t.name}
-                  description={t.description}
-                  count={t.payload.widgets.length}
-                />
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
         <button
           type="button"
           onClick={() => setHowOpen(true)}
@@ -190,27 +161,7 @@ export function Header() {
               <SheetDescription className="sr-only">Menu</SheetDescription>
             </SheetHeader>
             <div className="flex flex-col gap-1 px-4 pb-6">
-              <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-faint">
-                Templates
-              </p>
-              {TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    requestTemplate(t.id);
-                  }}
-                  className="rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-raised"
-                >
-                  <TemplateSummary
-                    name={t.name}
-                    description={t.description}
-                    count={t.payload.widgets.length}
-                  />
-                </button>
-              ))}
-              <div className="mt-3 border-t border-subtle/60 pt-3">
+              <div className="pt-1">
                 {[
                   { label: 'Import dashboard', icon: Upload, fn: pickAndImportDashboard },
                   { label: 'Export dashboard', icon: Download, fn: exportDashboardJson },
@@ -306,6 +257,32 @@ export function Header() {
         </CommandList>
       </CommandDialog>
       <HowItWorksDialog open={howOpen} onOpenChange={setHowOpen} />
+
+      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Back to the start screen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This clears your {widgetCount}{' '}
+              {widgetCount === 1 ? 'widget' : 'widgets'} and shows the empty
+              dashboard again. Export first if you want to keep a copy.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setResetOpen(false);
+                resetDashboard();
+                window.scrollTo({ top: 0 });
+              }}
+            >
+              Clear dashboard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 }
