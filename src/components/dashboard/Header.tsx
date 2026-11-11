@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
   ChevronDown,
@@ -45,7 +46,15 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ApiUrlComposer } from './ApiUrlComposer';
-import { HowItWorksDialog } from './HowItWorksDialog';
+
+/** The walkthrough is heavy (motion + four scenes) — load on demand. */
+const HowItWorksDialog = dynamic(
+  () =>
+    import('@/components/how-it-works/HowItWorksDialog').then(
+      (m) => m.HowItWorksDialog,
+    ),
+  { ssr: false },
+);
 
 /** Rich template entry shared by the dropdown and the palette. */
 function TemplateSummary({
