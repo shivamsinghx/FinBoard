@@ -10,11 +10,11 @@ import { DEMO_URL, during, type CursorKey } from './timeline';
  */
 export const CURSOR: CursorKey[] = [
   { t: 0, x: 110, y: 55 },
-  { t: 400, x: 38, y: 24 },
-  { t: 800, x: 38, y: 24, click: true },
-  { t: 2700, x: 80, y: 24 },
-  { t: 3000, x: 80, y: 24, click: true },
-  { t: 4300, x: 80, y: 24 },
+  { t: 400, x: 38, y: 24, target: 'url' },
+  { t: 800, x: 38, y: 24, target: 'url', click: true },
+  { t: 2700, x: 80, y: 24, target: 'test' },
+  { t: 3000, x: 80, y: 24, target: 'test', click: true },
+  { t: 4300, x: 80, y: 24, target: 'test' },
 ];
 
 const TYPE_AT = 900;
@@ -38,7 +38,10 @@ export function SceneConnect({ t }: { t: number }) {
 
       <p className="mb-1 text-[11px] font-medium text-muted">API URL</p>
       <div className="flex items-center gap-1.5">
-        <div className="flex h-9 flex-1 items-center overflow-hidden rounded-lg border border-subtle bg-canvas px-2.5">
+        <div
+          data-cursor="url"
+          className="flex h-9 flex-1 items-center overflow-hidden rounded-lg border border-subtle bg-canvas px-2.5"
+        >
           <span className="whitespace-nowrap font-mono text-[11px] text-muted">
             {DEMO_URL.slice(0, typed)}
             {during(t, TYPE_AT) && typed < DEMO_URL.length && (
@@ -50,7 +53,10 @@ export function SceneConnect({ t }: { t: number }) {
             )}
           </span>
         </div>
-        <div className="flex h-9 w-16 items-center justify-center rounded-lg border border-subtle bg-raised text-xs font-medium text-ink">
+        <div
+          data-cursor="test"
+          className="flex h-9 w-16 items-center justify-center rounded-lg border border-subtle bg-raised text-xs font-medium text-ink"
+        >
           {testing ? (
             <motion.span
               className="size-3.5 rounded-full border-2 border-accent border-t-transparent"

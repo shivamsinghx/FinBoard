@@ -29,6 +29,15 @@ const SCENE_CURSORS: CursorKey[][] = [
   ARRANGE_KEYS,
 ];
 
+/** Measured `data-cursor` element center, else the key's % fallback. */
+function resolveKey(
+  key: CursorKey,
+  targets: Record<string, { x: number; y: number }>,
+): CursorKey {
+  const hit = key.target ? targets[key.target] : undefined;
+  return hit ? { ...key, x: hit.x, y: hit.y } : key;
+}
+
 /**
  * The 16:10 walkthrough stage — renders the active scene as a pure
  * function of elapsed time, plus cursor + click ripples. `animated=false`
@@ -52,12 +61,52 @@ export function Stage({
   const keyIdx = cursorKeyIndexAt(keys, t);
   const Scene = SCENES_COMPONENTS[idx];
 
+  const stageRef = useRef<HTMLDivElement>(null);
+  /**
+   * `data-cursor` element centers in % of the stage — re-measured on
+   * every render (the clock ticks ~20fps), so targets animate, resize
+   * and appear mid-scene without the cursor ever guessing. Stored in
+   * state with an epsilon guard so it converges without a loop.
+   */
+  const [targets, setTargets] = useState<Record<string, { x: number; y: number }>>({});
+
+  useEffect(() => {
+    const root = stageRef.current;
+    if (!root) return;
+    const box = root.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) return;
+    const next: Record<string, { x: number; y: number }> = {};
+    root.querySelectorAll<HTMLElement>('[data-cursor]').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      next[el.dataset.cursor ?? ''] = {
+        x: ((r.left + r.width / 2 - box.left) / box.width) * 100,
+        y: ((r.top + r.height / 2 - box.top) / box.height) * 100,
+      };
+    });
+    setTargets((prev) => {
+      const pk = Object.keys(prev);
+      const nk = Object.keys(next);
+      if (
+        pk.length === nk.length &&
+        nk.every(
+          (k) =>
+            prev[k] &&
+            Math.abs(prev[k].x - next[k].x) < 0.05 &&
+            Math.abs(prev[k].y - next[k].y) < 0.05,
+        )
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [t]);
+
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const fired = useRef(-1);
 
   useEffect(() => {
     if (!animated || ended) return;
-    const key = keys[keyIdx];
+    const key = resolveKey(keys[keyIdx], targets);
     if (!key?.click || fired.current === idx * 100 + keyIdx) return;
     fired.current = idx * 100 + keyIdx;
     const id = Date.now() + keyIdx;
@@ -73,12 +122,15 @@ export function Stage({
       clearTimeout(spawn);
       clearTimeout(clear);
     };
-  }, [animated, ended, idx, keyIdx, keys]);
+  }, [animated, ended, idx, keyIdx, keys, targets]);
 
   const live = animated && !ended;
 
   return (
-    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-subtle bg-canvas">
+    <div
+      ref={stageRef}
+      className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-subtle bg-canvas"
+    >
       {ended ? (
         endScreen
       ) : (
@@ -96,7 +148,7 @@ export function Stage({
         </AnimatePresence>
       )}
       {live && ripples.map((r) => <Ripple key={r.id} x={r.x} y={r.y} />)}
-      {live && <Cursor pos={cursorAt(keys, t)} />}
+      {live && <Cursor pos={resolveKey(cursorAt(keys, t), targets)} />}
     </div>
   );
 }

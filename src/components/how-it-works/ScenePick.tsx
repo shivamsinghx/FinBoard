@@ -10,13 +10,13 @@ import { during, type CursorKey } from './timeline';
  * label + Currency format.
  */
 export const CURSOR: CursorKey[] = [
-  { t: 0, x: 42, y: 8 },
-  { t: 600, x: 42, y: 8, click: true },
-  { t: 2100, x: 52, y: 36 },
-  { t: 2500, x: 52, y: 36, click: true },
-  { t: 3400, x: 74, y: 52 },
-  { t: 4200, x: 80, y: 66 },
-  { t: 4600, x: 80, y: 66, click: true },
+  { t: 0, x: 42, y: 8, target: 'search' },
+  { t: 600, x: 42, y: 8, target: 'search', click: true },
+  { t: 2100, x: 52, y: 36, target: 'add-inr' },
+  { t: 2500, x: 52, y: 36, target: 'add-inr', click: true },
+  { t: 3400, x: 74, y: 52, target: 'selected' },
+  { t: 4200, x: 80, y: 66, target: 'format' },
+  { t: 4600, x: 80, y: 66, target: 'format', click: true },
 ];
 
 const SEARCH = 'INR';
@@ -46,7 +46,10 @@ export function ScenePick({ t }: { t: number }) {
   return (
     <div className="absolute inset-x-[8%] top-[6%]">
       {/* search */}
-      <div className="mb-2 flex h-8 items-center gap-2 rounded-lg border border-subtle bg-canvas px-2.5">
+      <div
+        data-cursor="search"
+        className="mb-2 flex h-8 items-center gap-2 rounded-lg border border-subtle bg-canvas px-2.5"
+      >
         <Search className="size-3.5 text-faint" aria-hidden />
         <span className="font-mono text-[11px] text-muted">
           {query}
@@ -82,6 +85,7 @@ export function ScenePick({ t }: { t: number }) {
                 <span className="font-mono text-muted">{r}</span>
                 {isInr && (
                   <span
+                    data-cursor="add-inr"
                     className={`ml-auto flex size-4 items-center justify-center rounded-full ${
                       picked
                         ? 'bg-accent text-white'
@@ -108,6 +112,7 @@ export function ScenePick({ t }: { t: number }) {
           <AnimatePresence>
             {picked && (
               <motion.div
+                data-cursor="selected"
                 className="rounded-lg border border-subtle bg-raised/60 px-2 py-1.5"
                 initial={{ opacity: 0, y: 8, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -129,7 +134,10 @@ export function ScenePick({ t }: { t: number }) {
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[10px] text-faint">
                   <span className="font-mono">data.rates.INR</span>
-                  <span className="relative overflow-hidden rounded border border-subtle bg-surface px-1.5 py-px">
+                  <span
+                    data-cursor="format"
+                    className="relative overflow-hidden rounded border border-subtle bg-surface px-1.5 py-px"
+                  >
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={during(t, FORMAT_AT) ? 'cur' : 'auto'}

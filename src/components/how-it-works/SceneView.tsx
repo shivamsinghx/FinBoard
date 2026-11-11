@@ -8,12 +8,12 @@ import type { CursorKey } from './timeline';
  * little preview morphs to match.
  */
 export const CURSOR: CursorKey[] = [
-  { t: 0, x: 36, y: 13 },
-  { t: 700, x: 36, y: 13, click: true },
-  { t: 1800, x: 50, y: 13 },
-  { t: 2100, x: 50, y: 13, click: true },
-  { t: 3000, x: 64, y: 13 },
-  { t: 3300, x: 64, y: 13, click: true },
+  { t: 0, x: 40, y: 13, target: 'mode-card' },
+  { t: 700, x: 40, y: 13, target: 'mode-card', click: true },
+  { t: 1800, x: 50, y: 13, target: 'mode-table' },
+  { t: 2100, x: 50, y: 13, target: 'mode-table', click: true },
+  { t: 3000, x: 60, y: 13, target: 'mode-chart' },
+  { t: 3300, x: 60, y: 13, target: 'mode-chart', click: true },
 ];
 
 const MODES = ['Card', 'Table', 'Chart'] as const;
@@ -92,6 +92,7 @@ export function SceneView({ t }: { t: number }) {
         {MODES.map((m) => (
           <span
             key={m}
+            data-cursor={`mode-${m.toLowerCase()}`}
             className={`rounded px-3 py-1 text-[11px] font-medium transition-colors ${
               active === m ? 'bg-surface text-ink shadow-xs' : 'text-faint'
             }`}

@@ -46,6 +46,13 @@ export interface CursorKey {
   x: number;
   y: number;
   click?: boolean;
+  /**
+   * Optional `data-cursor` id inside the scene — when set, the Stage
+   * measures the element's real center each tick and the cursor tracks
+   * it exactly (also while the element animates). `x`/`y` remain as the
+   * fallback before the element is measured.
+   */
+  target?: string;
 }
 
 /**

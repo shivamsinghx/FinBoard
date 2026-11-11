@@ -10,13 +10,13 @@ import { clamp01, during, type CursorKey } from './timeline';
  */
 export const CURSOR: CursorKey[] = [
   { t: 0, x: 110, y: 60 },
-  { t: 900, x: 21, y: 38 },
-  { t: 1400, x: 21, y: 38, click: true },
-  { t: 1900, x: 45, y: 42 },
-  { t: 2300, x: 68, y: 42 },
-  { t: 2600, x: 79, y: 42 },
-  { t: 2700, x: 79, y: 42, click: true },
-  { t: 3300, x: 79, y: 42 },
+  { t: 900, x: 21, y: 38, target: 'widget' },
+  { t: 1400, x: 21, y: 38, target: 'widget', click: true },
+  { t: 1900, x: 45, y: 42, target: 'widget' },
+  { t: 2300, x: 68, y: 42, target: 'widget' },
+  { t: 2600, x: 79, y: 42, target: 'widget' },
+  { t: 2700, x: 79, y: 42, target: 'widget', click: true },
+  { t: 3300, x: 79, y: 42, target: 'widget' },
 ];
 
 const DRAG_AT = 1600;
@@ -78,6 +78,7 @@ export function SceneArrange({ t }: { t: number }) {
 
         {/* the new widget — drops in, then rides the drag */}
         <motion.div
+          data-cursor="widget"
           className="absolute w-[26%]"
           initial={{ y: '-70%', opacity: 0 }}
           animate={{
