@@ -1,54 +1,48 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { Download, Plus, RefreshCw } from 'lucide-react';
-import { refetchUrl } from '@/hooks/useWidgetData';
-import { urlWithSymbol } from '@/lib/cardDisplay';
+import { useState } from 'react';
+import {
+  ChevronDown,
+  Download,
+  LayoutTemplate,
+  Plus,
+  RefreshCw,
+  Upload,
+} from 'lucide-react';
+import {
+  exportDashboardJson,
+  pickAndImportDashboard,
+  refreshAllWidgets,
+} from '@/lib/dashboardActions';
+import { TEMPLATES } from '@/lib/templates';
 import { useDashboardStore } from '@/store/dashboardStore';
+import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 /**
  * Dashboard heading + actions: "My dashboard" with a live widget count,
- * Refresh all (refetches every widget URL through the shared cache —
- * duplicate URLs dedupe into one request), Export (JSON download), and
- * Add widget.
+ * a joined Import / Export / Refresh-all group, a Templates menu, and
+ * the primary Add widget button.
  */
 export function DashboardToolbar() {
   const widgets = useDashboardStore((s) => s.widgets);
-  const exportDashboard = useDashboardStore((s) => s.exportDashboard);
   const openAddWidget = useDashboardStore((s) => s.openAddWidget);
+  const requestTemplate = useDashboardStore((s) => s.requestTemplate);
   const [refreshing, setRefreshing] = useState(false);
 
-  async function refreshAll() {
+  async function onRefreshAll() {
     setRefreshing(true);
     try {
-      const urls = new Set<string>();
-      for (const w of widgets) {
-        urls.add(w.config.endpoint);
-        // Symbol watchlists poll one quote URL per symbol.
-        if (
-          w.type === 'card' &&
-          !w.config.card?.listPath &&
-          w.config.card?.symbols?.length
-        ) {
-          for (const s of w.config.card.symbols) {
-            urls.add(urlWithSymbol(w.config.endpoint, s));
-          }
-        }
-      }
-      await Promise.allSettled([...urls].map(refetchUrl));
+      await refreshAllWidgets();
     } finally {
       setRefreshing(false);
     }
-  }
-
-  function onExport() {
-    const blob = new Blob([exportDashboard()], { type: 'application/json' });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = href;
-    a.download = 'finboard-dashboard.json';
-    a.click();
-    URL.revokeObjectURL(href);
   }
 
   return (
@@ -64,51 +58,85 @@ export function DashboardToolbar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <ToolbarButton onClick={refreshAll} disabled={refreshing} label="Refresh all">
-          <RefreshCw
-            className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`}
-            aria-hidden
-          />
-          <span className="hidden sm:inline">Refresh all</span>
-        </ToolbarButton>
-        <ToolbarButton onClick={onExport} label="Export dashboard">
-          <Download className="size-3.5" aria-hidden />
-          <span className="hidden sm:inline">Export</span>
-        </ToolbarButton>
-        <button
-          type="button"
+        <ButtonGroup className="rounded-lg shadow-none">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-subtle text-muted hover:text-ink"
+            onClick={pickAndImportDashboard}
+            aria-label="Import dashboard"
+          >
+            <Upload className="size-3.5" aria-hidden />
+            <span className="hidden sm:inline">Import</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-subtle text-muted hover:text-ink"
+            onClick={exportDashboardJson}
+            aria-label="Export dashboard"
+          >
+            <Download className="size-3.5" aria-hidden />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-subtle text-muted hover:text-ink"
+            onClick={onRefreshAll}
+            disabled={refreshing}
+            aria-label="Refresh all widgets"
+          >
+            <RefreshCw
+              className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`}
+              aria-hidden
+            />
+            <span className="hidden sm:inline">Refresh all</span>
+          </Button>
+        </ButtonGroup>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 border-subtle text-muted hover:text-ink"
+                aria-label="Load a template"
+              />
+            }
+          >
+            <LayoutTemplate className="size-3.5" aria-hidden />
+            <span className="hidden sm:inline">Templates</span>
+            <ChevronDown className="size-3.5 opacity-60" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            {TEMPLATES.map((t) => (
+              <DropdownMenuItem
+                key={t.id}
+                onSelect={() => requestTemplate(t.id)}
+              >
+                <span className="flex flex-col gap-0.5 py-0.5">
+                  <span className="text-sm font-medium">{t.name}</span>
+                  <span className="text-[11px] leading-snug text-faint">
+                    {t.description} · {t.payload.widgets.length} widgets
+                  </span>
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button
+          size="sm"
           onClick={() => openAddWidget()}
           aria-label="Add widget"
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover"
+          className="gap-1.5"
         >
           <Plus className="size-4" aria-hidden />
           <span className="hidden sm:inline">Add widget</span>
-        </button>
+        </Button>
       </div>
     </div>
-  );
-}
-
-function ToolbarButton({
-  onClick,
-  disabled,
-  label,
-  children,
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className="flex items-center gap-1.5 rounded-lg border border-subtle bg-surface px-3 py-2 text-sm font-medium text-muted transition-colors hover:border-strong hover:text-ink disabled:pointer-events-none disabled:opacity-50"
-    >
-      {children}
-    </button>
   );
 }

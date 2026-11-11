@@ -1,16 +1,10 @@
 'use client';
 
+import { TEMPLATES } from '@/lib/templates';
 import { useDashboardStore } from '@/store/dashboardStore';
-import type { WidgetType } from '@/types/widget';
 import { ApiUrlComposer } from './ApiUrlComposer';
 import { CellMosaic } from './CellMosaic';
 import { MorphPill, useMorphSequence, type MorphSlot } from './MorphPill';
-
-const TEMPLATE_CHIPS: { label: string; type: WidgetType }[] = [
-  { label: 'Indian markets', type: 'table' },
-  { label: 'US stocks', type: 'table' },
-  { label: 'Crypto', type: 'chart' },
-];
 
 const PILLS: { tint: { bg: string; fg: string }; slots: MorphSlot[] }[] = [
   {
@@ -40,7 +34,7 @@ const PILLS: { tint: { bg: string; fg: string }; slots: MorphSlot[] }[] = [
 ];
 
 export function EmptyHero() {
-  const addWidget = useDashboardStore((s) => s.addWidget);
+  const requestTemplate = useDashboardStore((s) => s.requestTemplate);
   const indices = useMorphSequence(PILLS.map((p) => p.slots.length));
 
   return (
@@ -75,16 +69,14 @@ export function EmptyHero() {
 
         <div className="mt-6 flex items-center gap-3 text-sm text-muted">
           <span>or start with</span>
-          {TEMPLATE_CHIPS.map((chip) => (
+          {TEMPLATES.map((t) => (
             <button
-              key={chip.label}
+              key={t.id}
               type="button"
-              onClick={() =>
-                addWidget(chip.type, { config: { title: chip.label } })
-              }
+              onClick={() => requestTemplate(t.id)}
               className="rounded-full border border-subtle bg-surface px-3 py-1 text-ink/80 transition-colors hover:border-strong hover:text-ink"
             >
-              {chip.label}
+              {t.name}
             </button>
           ))}
         </div>

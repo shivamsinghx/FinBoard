@@ -5,6 +5,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Layout } from 'react-grid-layout';
 import { FINBOARD_STORAGE_KEY } from '@/lib/constants';
+import { templateById, type DashboardTemplate } from '@/lib/templates';
+import { toast } from '@/components/ui/toast';
 import {
   WIDGET_GRID_DEFAULTS,
   WIDGET_TYPE_LABELS,
@@ -124,6 +126,14 @@ interface DashboardState {
   /** Restore a previously exported dashboard. Returns an error message or null. */
   importDashboard: (json: string) => string | null;
   resetDashboard: () => void;
+
+  /** Template awaiting "replace current dashboard?" confirmation; transient. */
+  pendingTemplate: DashboardTemplate | null;
+  /** Load a template now (empty dashboard) or stage it for confirmation. */
+  requestTemplate: (id: string) => void;
+  /** Replace the dashboard with the pending template. */
+  confirmTemplate: () => void;
+  cancelTemplate: () => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -224,6 +234,34 @@ export const useDashboardStore = create<DashboardState>()(
       },
 
       resetDashboard: () => set({ widgets: [], editingWidgetId: null }),
+
+      pendingTemplate: null,
+      requestTemplate: (id) => {
+        const tpl = templateById(id);
+        if (!tpl) return;
+        if (get().widgets.length === 0) {
+          const err = get().importDashboard(JSON.stringify(tpl.payload));
+          toast.add(
+            err
+              ? { title: 'Template failed to load', description: err, type: 'error' }
+              : { title: 'Template loaded', description: tpl.name, type: 'success' },
+          );
+        } else {
+          set({ pendingTemplate: tpl });
+        }
+      },
+      confirmTemplate: () => {
+        const tpl = get().pendingTemplate;
+        set({ pendingTemplate: null });
+        if (!tpl) return;
+        const err = get().importDashboard(JSON.stringify(tpl.payload));
+        toast.add(
+          err
+            ? { title: 'Template failed to load', description: err, type: 'error' }
+            : { title: 'Template loaded', description: tpl.name, type: 'success' },
+        );
+      },
+      cancelTemplate: () => set({ pendingTemplate: null }),
     }),
     {
       name: FINBOARD_STORAGE_KEY,

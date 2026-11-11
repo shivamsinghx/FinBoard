@@ -1,24 +1,92 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { LayoutDashboard } from 'lucide-react';
+import {
+  ChevronDown,
+  Download,
+  FilePlus2,
+  LayoutDashboard,
+  LayoutTemplate,
+  Menu,
+  RefreshCw,
+  Search,
+  Upload,
+} from 'lucide-react';
+import {
+  exportDashboardJson,
+  pickAndImportDashboard,
+  refreshAllWidgets,
+} from '@/lib/dashboardActions';
+import { TEMPLATES } from '@/lib/templates';
 import { useDashboardStore } from '@/store/dashboardStore';
+import { Button } from '@/components/ui/button';
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Kbd } from '@/components/ui/kbd';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { ApiUrlComposer } from './ApiUrlComposer';
 
-export function Header() {
-  const importDashboard = useDashboardStore((s) => s.importDashboard);
-  const fileRef = useRef<HTMLInputElement>(null);
+/** Rich template entry shared by the dropdown and the palette. */
+function TemplateSummary({
+  name,
+  description,
+  count,
+}: {
+  name: string;
+  description: string;
+  count: number;
+}) {
+  return (
+    <span className="flex flex-col gap-0.5 py-0.5">
+      <span className="text-sm font-medium text-ink">{name}</span>
+      <span className="text-[11px] leading-snug text-faint">
+        {description} · {count} {count === 1 ? 'widget' : 'widgets'}
+      </span>
+    </span>
+  );
+}
 
-  function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    void file.text().then((text) => {
-      const err = importDashboard(text);
-      if (err) console.error('Dashboard import failed:', err);
-    });
-    e.target.value = '';
-  }
+export function Header() {
+  const requestTemplate = useDashboardStore((s) => s.requestTemplate);
+  const openAddWidget = useDashboardStore((s) => s.openAddWidget);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const paletteAction = (fn: () => void) => () => {
+    setPaletteOpen(false);
+    fn();
+  };
 
   return (
     <header className="relative z-20 mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-6">
@@ -31,13 +99,33 @@ export function Header() {
         aria-label="Primary"
         className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex"
       >
-        <button
-          type="button"
-          className="text-sm text-ink/85 transition-colors hover:text-ink"
-          onClick={() => document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' })}
-        >
-          Templates
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className="flex items-center gap-1 text-sm text-ink/85 transition-colors hover:text-ink"
+              />
+            }
+          >
+            Templates
+            <ChevronDown className="size-3.5 opacity-60" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center" className="w-72">
+            {TEMPLATES.map((t) => (
+              <DropdownMenuItem
+                key={t.id}
+                onSelect={() => requestTemplate(t.id)}
+              >
+                <TemplateSummary
+                  name={t.name}
+                  description={t.description}
+                  count={t.payload.widgets.length}
+                />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <a href="#how-it-works" className="text-sm text-ink/85 transition-colors hover:text-ink">
           How it works
         </a>
@@ -49,22 +137,130 @@ export function Header() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
-          className="hidden text-sm text-ink/85 transition-colors hover:text-ink sm:block"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Open command palette"
+          className="hidden items-center gap-2 rounded-lg border border-subtle bg-surface px-2.5 py-1.5 text-xs text-faint transition-colors hover:border-strong hover:text-muted sm:flex"
         >
-          Import
+          <Search className="size-3.5" aria-hidden />
+          <Kbd>Ctrl</Kbd>
+          <Kbd>K</Kbd>
         </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".json,application/json"
-          className="hidden"
-          aria-label="Import dashboard configuration"
-          onChange={onImportFile}
-        />
 
         <ApiUrlComposer size="nav" />
+
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="md:hidden"
+                aria-label="Open menu"
+              />
+            }
+          >
+            <Menu className="size-4.5" aria-hidden />
+          </SheetTrigger>
+          <SheetContent side="right" className="w-72">
+            <SheetHeader>
+              <SheetTitle>FinBoard</SheetTitle>
+              <SheetDescription className="sr-only">Menu</SheetDescription>
+            </SheetHeader>
+            <div className="flex flex-col gap-1 px-4 pb-6">
+              <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-faint">
+                Templates
+              </p>
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    requestTemplate(t.id);
+                  }}
+                  className="rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-raised"
+                >
+                  <TemplateSummary
+                    name={t.name}
+                    description={t.description}
+                    count={t.payload.widgets.length}
+                  />
+                </button>
+              ))}
+              <div className="mt-3 border-t border-subtle/60 pt-3">
+                {[
+                  { label: 'Import dashboard', icon: Upload, fn: pickAndImportDashboard },
+                  { label: 'Export dashboard', icon: Download, fn: exportDashboardJson },
+                  { label: 'Refresh all widgets', icon: RefreshCw, fn: refreshAllWidgets },
+                  { label: 'Add widget', icon: FilePlus2, fn: () => openAddWidget() },
+                ].map(({ label, icon: Icon, fn }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      fn();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised hover:text-ink"
+                  >
+                    <Icon className="size-4 text-faint" aria-hidden />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 border-t border-subtle/60 pt-3">
+                <a href="#how-it-works" onClick={() => setMenuOpen(false)} className="block rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised">
+                  How it works
+                </a>
+                <a href="#docs" onClick={() => setMenuOpen(false)} className="block rounded-lg px-2 py-2 text-sm text-ink/85 transition-colors hover:bg-raised">
+                  Docs
+                </a>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
+
+      <CommandDialog
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        title="Command palette"
+        description="Run a dashboard action"
+      >
+        <CommandInput placeholder="Type a command…" />
+        <CommandList>
+          <CommandEmpty>No matching command.</CommandEmpty>
+          <CommandGroup heading="Dashboard">
+            <CommandItem onSelect={paletteAction(() => openAddWidget())}>
+              <FilePlus2 className="size-4" aria-hidden />
+              Add widget
+            </CommandItem>
+            <CommandItem onSelect={paletteAction(refreshAllWidgets)}>
+              <RefreshCw className="size-4" aria-hidden />
+              Refresh all widgets
+            </CommandItem>
+            <CommandItem onSelect={paletteAction(exportDashboardJson)}>
+              <Download className="size-4" aria-hidden />
+              Export dashboard
+            </CommandItem>
+            <CommandItem onSelect={paletteAction(pickAndImportDashboard)}>
+              <Upload className="size-4" aria-hidden />
+              Import dashboard
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Templates">
+            {TEMPLATES.map((t) => (
+              <CommandItem
+                key={t.id}
+                onSelect={paletteAction(() => requestTemplate(t.id))}
+              >
+                <LayoutTemplate className="size-4" aria-hidden />
+                Load template: {t.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </header>
   );
 }
