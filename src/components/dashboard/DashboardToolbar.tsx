@@ -10,7 +10,7 @@ import {
   Upload,
 } from 'lucide-react';
 import {
-  exportDashboardJson,
+  requestExport,
   pickAndImportDashboard,
   refreshAllWidgets,
 } from '@/lib/dashboardActions';
@@ -73,7 +73,7 @@ export function DashboardToolbar() {
             variant="outline"
             size="sm"
             className="border-subtle text-muted hover:text-ink"
-            onClick={exportDashboardJson}
+            onClick={requestExport}
             aria-label="Export dashboard"
           >
             <Download className="size-3.5" aria-hidden />

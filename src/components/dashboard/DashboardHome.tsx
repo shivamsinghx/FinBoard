@@ -13,6 +13,7 @@ import { DashboardToolbar } from './DashboardToolbar';
 import { EmptyHero } from './EmptyHero';
 import { Header } from './Header';
 import { TemplateConfirmDialog } from './TemplateConfirmDialog';
+import { ExportKeyDialog } from './ExportKeyDialog';
 
 /** The modal is heavy (explorer + pickers) — load it only when opened. */
 const AddWidgetModal = dynamic(
@@ -98,6 +99,7 @@ export function DashboardHome() {
       {hasHydrated ? (hasWidgets ? <WidgetList /> : <EmptyHero />) : <div className="flex-1" />}
       <AddWidgetModal />
       <TemplateConfirmDialog />
+      <ExportKeyDialog />
     </div>
   );
 }

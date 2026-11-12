@@ -16,7 +16,7 @@ import {
   Upload,
 } from 'lucide-react';
 import {
-  exportDashboardJson,
+  requestExport,
   pickAndImportDashboard,
   refreshAllWidgets,
 } from '@/lib/dashboardActions';
@@ -167,7 +167,7 @@ export function Header() {
               <div className="pt-1">
                 {[
                   { label: 'Import dashboard', icon: Upload, fn: pickAndImportDashboard },
-                  { label: 'Export dashboard', icon: Download, fn: exportDashboardJson },
+                  { label: 'Export dashboard', icon: Download, fn: requestExport },
                   { label: 'Refresh all widgets', icon: RefreshCw, fn: refreshAllWidgets },
                   { label: 'Add widget', icon: FilePlus2, fn: () => openAddWidget() },
                 ].map(({ label, icon: Icon, fn }) => (
@@ -223,7 +223,7 @@ export function Header() {
               <RefreshCw className="size-4" aria-hidden />
               Refresh all widgets
             </CommandItem>
-            <CommandItem onSelect={paletteAction(exportDashboardJson)}>
+            <CommandItem onSelect={paletteAction(requestExport)}>
               <Download className="size-4" aria-hidden />
               Export dashboard
             </CommandItem>

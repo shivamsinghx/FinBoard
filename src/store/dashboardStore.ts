@@ -129,6 +129,8 @@ interface DashboardState {
 
   /** Template awaiting "replace current dashboard?" confirmation; transient. */
   pendingTemplate: DashboardTemplate | null;
+  /** Keyed-widget count awaiting an export decision; transient. */
+  exportKeyPrompt: number | null;
   /** Load a template now (empty dashboard) or stage it for confirmation. */
   requestTemplate: (id: string) => void;
   /** Replace the dashboard with the pending template. */
@@ -236,6 +238,7 @@ export const useDashboardStore = create<DashboardState>()(
       resetDashboard: () => set({ widgets: [], editingWidgetId: null }),
 
       pendingTemplate: null,
+      exportKeyPrompt: null,
       requestTemplate: (id) => {
         const tpl = templateById(id);
         if (!tpl) return;

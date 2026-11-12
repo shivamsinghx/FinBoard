@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FinBoard
 
-## Getting Started
+Turn any finance API into live cards, watchlists, tables and charts — arranged your way. Paste an API URL, test and inspect the JSON, pick fields or a list, and FinBoard builds a refreshable widget on a customizable dashboard.
 
-First, run the development server:
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### API keys (optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Widgets work without keys on Coinbase endpoints and Alpha Vantage's
+`apikey=demo`. For live Finnhub and Alpha Vantage data, add free keys to
+`.env.local` at the repo root:
 
-## Learn More
+```bash
+FINNHUB_API_KEY=your_finnhub_key        # finnhub.io → dashboard → API key
+ALPHA_VANTAGE_API_KEY=your_av_key       # alphavantage.co → claim free API key
+```
 
-To learn more about Next.js, take a look at the following resources:
+Requests go through `app/api/proxy/route.ts`, which injects the matching key
+server-side — keys never reach the browser. The proxy only adds a key when the
+widget URL doesn't already carry one, so users can put their own `&token=` /
+`&apikey=` in a URL to use their own quota.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Restart the dev server after changing `.env.local`.**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Stack
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js App Router · React · TypeScript · Tailwind CSS v4 · Zustand
+(localStorage persistence) · TanStack Table · Recharts +
+lightweight-charts · Vitest.

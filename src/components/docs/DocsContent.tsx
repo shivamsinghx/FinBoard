@@ -9,7 +9,9 @@ import {
   LineChart as LineChartIcon,
   Link2,
   RefreshCw,
+  ShieldCheck,
   Table2,
+  TriangleAlertIcon,
   Timer,
   Wallet,
 } from 'lucide-react';
@@ -23,6 +25,7 @@ import { FormatPlayground } from '@/components/docs/FormatPlayground';
 import { docErrorSlug } from '@/lib/docsSections';
 import { TEMPLATES } from '@/lib/templates';
 import type { ProxyErrorCode } from '@/types/api';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Accordion,
   AccordionContent,
@@ -246,7 +249,54 @@ function SupportedApis() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 3 — Widget types                                                    */
+/* 3 — API keys & security                                             */
+/* ------------------------------------------------------------------ */
+
+function ApiKeys() {
+  return (
+    <>
+      <ul className="list-disc space-y-3 pl-5 marker:text-faint">
+        <li>
+          <span className="font-medium text-ink">No key needed</span> — Coinbase
+          endpoints and Alpha Vantage’s <Code>apikey=demo</Code> work out of the
+          box.
+        </li>
+        <li>
+          <span className="font-medium text-ink">Built-in keys</span> — Finnhub
+          and Alpha Vantage URLs work as-is; FinBoard adds its own key on the
+          server. These keys share one free quota across all users, so you may
+          occasionally see “API limit reached”.
+        </li>
+        <li>
+          <span className="font-medium text-ink">Use your own key</span> — add{' '}
+          <Code>&amp;token=YOUR_KEY</Code> (Finnhub) or{' '}
+          <Code>&amp;apikey=YOUR_KEY</Code> (Alpha Vantage) to the widget URL to
+          use your own quota. The built-in key is only added when the URL has
+          none.
+        </li>
+      </ul>
+      <Alert variant="warning">
+        <TriangleAlertIcon aria-hidden />
+        <AlertTitle>Keys in URLs live in your dashboard</AlertTitle>
+        <AlertDescription>
+          A key you put in a URL is stored with that widget in this browser and
+          included in exported dashboard files — don’t share exports that
+          contain your key.
+        </AlertDescription>
+      </Alert>
+      <p className="flex gap-2.5">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+        <span>
+          Built-in keys stay on our server. Requests go through FinBoard’s
+          proxy, so they’re never sent to your browser.
+        </span>
+      </p>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 4 — Widget types                                                    */
 /* ------------------------------------------------------------------ */
 
 /** Static mini quote card in real widget styling. */
@@ -363,7 +413,7 @@ function WidgetTypes() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 4 — Formatting playground                                           */
+/* 5 — Formatting playground                                           */
 /* ------------------------------------------------------------------ */
 
 function Formatting() {
@@ -382,7 +432,7 @@ function Formatting() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 5 — Refresh, caching & rate limits                                  */
+/* 6 — Refresh, caching & rate limits                                  */
 /* ------------------------------------------------------------------ */
 
 function PipeNode({ title, sub }: { title: string; sub: string }) {
@@ -447,7 +497,7 @@ function RefreshSection() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 6 — Export, import & templates                                      */
+/* 7 — Export, import & templates                                      */
 /* ------------------------------------------------------------------ */
 
 const EXPORT_EXAMPLE = `{
@@ -477,7 +527,8 @@ function ExportTemplates() {
       <p>
         <span className="font-medium text-ink">Export</span> downloads{' '}
         <Code>finboard-dashboard.json</Code> — every widget with its type,
-        grid layout and full config. It contains no keys and no cached data:
+        grid layout and full config. It contains no cached data; if a widget
+        URL carries your own API key, export asks whether to strip it first:
       </p>
       <DocCode title="finboard-dashboard.json" lang="json" code={EXPORT_EXAMPLE} />
       <p>
@@ -494,7 +545,7 @@ function ExportTemplates() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 7 — Keyboard shortcuts                                              */
+/* 8 — Keyboard shortcuts                                              */
 /* ------------------------------------------------------------------ */
 
 const SHORTCUTS: { keys: string[]; what: string }[] = [
@@ -531,7 +582,7 @@ function Shortcuts() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 8 — Troubleshooting                                                 */
+/* 9 — Troubleshooting                                                 */
 /* ------------------------------------------------------------------ */
 
 const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: string }[] = [
@@ -539,6 +590,11 @@ const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: string }[] = [
     code: 'INVALID_URL',
     meaning: 'The URL was rejected before any request — it isn’t public http(s).',
     fix: 'Use a full https:// URL. Embedded credentials (user:pass@) and localhost/private-network hosts are blocked by the proxy.',
+  },
+  {
+    code: 'INVALID_KEY',
+    meaning: 'The provider rejected authentication — bad, missing or plan-restricted key.',
+    fix: 'If you put a key in the widget’s URL yourself, check it there. Otherwise the key is injected server-side from the deployment environment (FINNHUB_API_KEY / ALPHA_VANTAGE_API_KEY) — it’s a hosting-side setting, not fixable from the browser. Alpha Vantage’s demo key only works on a few endpoints (e.g. IBM).',
   },
   {
     code: 'RATE_LIMIT',
@@ -614,30 +670,33 @@ export function DocsContent() {
       <Section id="supported-apis" index={2} title="Supported APIs">
         <SupportedApis />
       </Section>
-      <Section id="widget-types" index={3} title="Widget types">
+      <Section id="api-keys" index={3} title="API keys & security">
+        <ApiKeys />
+      </Section>
+      <Section id="widget-types" index={4} title="Widget types">
         <WidgetTypes />
       </Section>
-      <Section id="formatting" index={4} title="Formatting playground">
+      <Section id="formatting" index={5} title="Formatting playground">
         <Formatting />
       </Section>
       <Section
         id="refresh-caching"
-        index={5}
+        index={6}
         title="Refresh, caching & rate limits"
       >
         <RefreshSection />
       </Section>
       <Section
         id="export-templates"
-        index={6}
+        index={7}
         title="Export, import & templates"
       >
         <ExportTemplates />
       </Section>
-      <Section id="shortcuts" index={7} title="Keyboard shortcuts">
+      <Section id="shortcuts" index={8} title="Keyboard shortcuts">
         <Shortcuts />
       </Section>
-      <Section id="troubleshooting" index={8} title="Troubleshooting">
+      <Section id="troubleshooting" index={9} title="Troubleshooting">
         <Troubleshooting />
       </Section>
     </article>

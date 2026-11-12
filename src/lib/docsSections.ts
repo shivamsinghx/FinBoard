@@ -30,6 +30,11 @@ export const DOC_SECTIONS: DocSectionMeta[] = [
     ],
   },
   {
+    id: 'api-keys',
+    title: 'API keys & security',
+    keywords: ['key', 'env', 'proxy', 'secret', 'security', 'finnhub_api_key'],
+  },
+  {
     id: 'widget-types',
     title: 'Widget types',
     keywords: ['card', 'table', 'chart', 'candle', 'watchlist', 'ohlc', 'fields'],
@@ -68,6 +73,7 @@ export const DOC_SECTIONS: DocSectionMeta[] = [
     keywords: [
       'error',
       'rate_limit',
+      'invalid_key',
       'invalid_url',
       'not_found',
       'timeout',

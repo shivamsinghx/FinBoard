@@ -1,5 +1,6 @@
 import { refetchUrl } from '@/hooks/useWidgetData';
 import { urlWithSymbol } from '@/lib/cardDisplay';
+import { countKeyedWidgets, stripKeysFromExport } from '@/lib/exportKeys';
 import { useDashboardStore } from '@/store/dashboardStore';
 import { toast } from '@/components/ui/toast';
 
@@ -28,8 +29,9 @@ export async function refreshAllWidgets(): Promise<void> {
 }
 
 /** Serialize the dashboard and download it as JSON. */
-export function exportDashboardJson(): void {
-  const json = useDashboardStore.getState().exportDashboard();
+export function exportDashboardJson(stripKeys = false): void {
+  const raw = useDashboardStore.getState().exportDashboard();
+  const json = stripKeys ? stripKeysFromExport(raw) : raw;
   const blob = new Blob([json], { type: 'application/json' });
   const href = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -38,6 +40,27 @@ export function exportDashboardJson(): void {
   a.click();
   URL.revokeObjectURL(href);
   toast.add({ title: 'Dashboard exported', type: 'success' });
+}
+
+/**
+ * Export entry point — when widget URLs embed API keys, routes through the
+ * confirm dialog (`exportKeyPrompt`) instead of downloading immediately.
+ */
+export function requestExport(): void {
+  const n = countKeyedWidgets(useDashboardStore.getState().widgets);
+  if (n === 0) exportDashboardJson();
+  else useDashboardStore.setState({ exportKeyPrompt: n });
+}
+
+/** Dialog answer: download the export with keys stripped or kept. */
+export function resolveExportKeys(stripKeys: boolean): void {
+  useDashboardStore.setState({ exportKeyPrompt: null });
+  exportDashboardJson(stripKeys);
+}
+
+/** Dialog dismissed — no download. */
+export function cancelExportKeys(): void {
+  useDashboardStore.setState({ exportKeyPrompt: null });
 }
 
 /** Open a file picker, read a dashboard JSON, and import it. */
