@@ -25,7 +25,9 @@ ALPHA_VANTAGE_API_KEY=your_av_key       # alphavantage.co → claim free API key
 Requests go through `app/api/proxy/route.ts`, which injects the matching key
 server-side — keys never reach the browser. The proxy only adds a key when the
 widget URL doesn't already carry one, so users can put their own `&token=` /
-`&apikey=` in a URL to use their own quota.
+`&apikey=` in a URL to use their own quota. Note these keys share one free
+quota across everyone using this deployment (Finnhub ~30 calls/min, Alpha
+Vantage 25 req/day), so heavy use can surface rate-limit errors.
 
 **Restart the dev server after changing `.env.local`.**
 

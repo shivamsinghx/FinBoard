@@ -22,7 +22,9 @@ import {
 } from '@/components/docs/DocActions';
 import { DocCode } from '@/components/docs/DocCode';
 import { FormatPlayground } from '@/components/docs/FormatPlayground';
+import type { ReactNode } from 'react';
 import { docErrorSlug } from '@/lib/docsSections';
+import { FRIENDLY_ERRORS } from '@/lib/proxyErrors';
 import { TEMPLATES } from '@/lib/templates';
 import type { ProxyErrorCode } from '@/types/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -147,8 +149,8 @@ const APIS: ApiCard[] = [
     icon: LineChartIcon,
     name: 'Finnhub',
     goodFor: 'US & global stock quotes, company metrics, OHLC candles — the backbone of the US-stocks template.',
-    keyLabel: 'Free key — injected by the proxy',
-    limits: 'Free tier ~30 calls/min. Set FINNHUB_API_KEY in .env.local and the proxy appends token= automatically.',
+    keyLabel: 'Built-in key included',
+    limits: 'Free tier ~30 calls/min. The built-in key is added automatically — or add your own &token= to the URL for your own quota.',
     examples: [
       { label: 'Quote', url: 'https://finnhub.io/api/v1/quote?symbol=AAPL', builder: true },
       { label: 'Daily candles', url: 'https://finnhub.io/api/v1/stock/candle?symbol=AAPL&resolution=D&from=1704067200&to=1735689600', builder: true },
@@ -158,8 +160,8 @@ const APIS: ApiCard[] = [
     icon: Landmark,
     name: 'Alpha Vantage',
     goodFor: 'Global quotes, daily series, top gainers/losers, and BSE symbols for Indian markets.',
-    keyLabel: 'Free key — injected · demo works for IBM',
-    limits: 'Free tier 25 req/day. ALPHA_VANTAGE_API_KEY in .env.local; apikey=demo returns real data for a handful of endpoints.',
+    keyLabel: 'Built-in key · demo works for IBM',
+    limits: 'Free tier 25 req/day. The built-in key is added automatically; apikey=demo also returns real data for a handful of endpoints.',
     examples: [
       { label: 'Daily series (demo)', url: 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo', builder: true },
       { label: 'Top gainers (demo)', url: 'https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=demo', builder: true },
@@ -255,7 +257,7 @@ function SupportedApis() {
 function ApiKeys() {
   return (
     <>
-      <ul className="list-disc space-y-3 pl-5 marker:text-faint">
+      <ul className="list-disc space-y-3 pl-5 marker:text-accent">
         <li>
           <span className="font-medium text-ink">No key needed</span> — Coinbase
           endpoints and Alpha Vantage’s <Code>apikey=demo</Code> work out of the
@@ -585,41 +587,64 @@ function Shortcuts() {
 /* 9 — Troubleshooting                                                 */
 /* ------------------------------------------------------------------ */
 
-const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: string }[] = [
+const ERROR_ITEMS: { code: ProxyErrorCode; meaning: string; fix: ReactNode[] }[] = [
   {
     code: 'INVALID_URL',
-    meaning: 'The URL was rejected before any request — it isn’t public http(s).',
-    fix: 'Use a full https:// URL. Embedded credentials (user:pass@) and localhost/private-network hosts are blocked by the proxy.',
+    meaning: 'The URL was rejected before any request — it isn’t a public web address.',
+    fix: [
+      <>Use a full <Code>https://</Code> URL, like the examples in Supported APIs.</>,
+      <>Remove any <Code>user:pass@</Code> part — credentials in URLs aren’t allowed.</>,
+    ],
   },
   {
     code: 'INVALID_KEY',
-    meaning: 'The provider rejected authentication — bad, missing or plan-restricted key.',
-    fix: 'If you put a key in the widget’s URL yourself, check it there. Otherwise the key is injected server-side from the deployment environment (FINNHUB_API_KEY / ALPHA_VANTAGE_API_KEY) — it’s a hosting-side setting, not fixable from the browser. Alpha Vantage’s demo key only works on a few endpoints (e.g. IBM).',
+    meaning: 'The API refused the key on the request — it’s missing, mistyped or not allowed on that plan.',
+    fix: [
+      <>If you added a key to the widget URL yourself, check it for typos. Using <Code>apikey=demo</Code>? It only works for example symbols like IBM.</>,
+      <>Didn’t add one? The built-in key may be temporarily refused — click Retry or try again later.</>,
+      <>For your own quota, add a free key to the URL: <Code>&amp;token=</Code> for Finnhub, <Code>&amp;apikey=</Code> for Alpha Vantage.</>,
+    ],
   },
   {
     code: 'RATE_LIMIT',
-    meaning: 'The provider throttled the request (HTTP 429, or a rate-limit body — Alpha Vantage returns these as HTTP 200 Notes).',
-    fix: 'Nothing to fix — the widget retries every 60s and keeps showing its last data. Raise the refresh interval or use your own key for headroom.',
+    meaning: 'Too many requests hit the API — its free quota is used up for now.',
+    fix: [
+      <>Wait — the widget retries every 60s and keeps showing its last data meanwhile.</>,
+      <>Raise the widget’s refresh interval so it asks less often.</>,
+      <>Add your own key to the URL for a quota that isn’t shared with other users.</>,
+    ],
   },
   {
     code: 'NOT_FOUND',
-    meaning: 'The upstream API returned 404 — the path or parameters don’t exist.',
-    fix: 'Check the endpoint path, symbol casing and required params (e.g. function=, symbol=).',
+    meaning: 'The API has nothing at that address — the path or a parameter is wrong.',
+    fix: [
+      <>Check the URL path and the symbol spelling (<Code>AAPL</Code>, not <Code>aapl</Code>).</>,
+      <>Compare against a working example URL in Supported APIs above.</>,
+    ],
   },
   {
     code: 'TIMEOUT',
-    meaning: 'The upstream API took longer than 10s to respond.',
-    fix: 'Retry — and prefer narrower queries (smaller limit, tighter date range) on heavy endpoints.',
+    meaning: 'The API didn’t answer within 10 seconds.',
+    fix: [
+      <>Click Retry — busy APIs often answer on the second try.</>,
+      <>Narrow the query: a smaller date range or lower limit responds faster.</>,
+    ],
   },
   {
     code: 'NETWORK',
-    meaning: 'The host couldn’t be reached — DNS failure or an unreachable server.',
-    fix: 'Check the hostname spelling and that the API is actually up.',
+    meaning: 'The API couldn’t be reached at all.',
+    fix: [
+      <>Check the hostname spelling in the URL.</>,
+      <>Check your internet connection, then click Retry.</>,
+    ],
   },
   {
     code: 'BAD_RESPONSE',
-    meaning: 'The response wasn’t usable JSON — an HTML error page, a body over 5MB, or more than 3 redirects.',
-    fix: 'Open the URL directly — it must return JSON. CSV/HTML endpoints aren’t supported.',
+    meaning: 'The API answered, but not with JSON FinBoard can use.',
+    fix: [
+      <>Open the URL in a new tab — it must return JSON text, not an HTML page or CSV file.</>,
+      <>Pick a different endpoint that returns JSON, like the examples in Supported APIs.</>,
+    ],
   },
 ];
 
@@ -627,29 +652,34 @@ function Troubleshooting() {
   return (
     <>
       <p>
-        Widget error states link here. Find the code in the widget’s error
-        message, then expand it:
+        If a widget shows an error, click “What does this mean?” in the widget,
+        or find the message below.
       </p>
-      <Accordion defaultValue={[docErrorSlug('RATE_LIMIT')]}>
+      <Accordion>
         {ERROR_ITEMS.map((e) => (
           <div key={e.code} id={docErrorSlug(e.code)} className="scroll-mt-24">
             <AccordionItem value={docErrorSlug(e.code)}>
-              <AccordionTrigger className="py-3">
-                <span className="flex items-center gap-2">
-                  <code className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs text-down">
+              <AccordionTrigger className="py-3 text-left">
+                <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  {FRIENDLY_ERRORS[e.code]}
+                  <Badge variant="secondary" className="font-mono text-[10px] font-normal">
                     {e.code}
-                  </code>
+                  </Badge>
                 </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-2 text-[13px]">
+              <AccordionContent className="space-y-2.5 text-[13px]">
                 <p>
                   <span className="font-medium text-ink">What it means — </span>
                   {e.meaning}
                 </p>
-                <p>
-                  <span className="font-medium text-ink">How to fix — </span>
-                  {e.fix}
-                </p>
+                <div>
+                  <span className="font-medium text-ink">How to fix</span>
+                  <ul className="mt-1.5 list-disc space-y-1 pl-5 marker:text-accent">
+                    {e.fix.map((step, i) => (
+                      <li key={i}>{step}</li>
+                    ))}
+                  </ul>
+                </div>
               </AccordionContent>
             </AccordionItem>
           </div>

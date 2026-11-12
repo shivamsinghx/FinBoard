@@ -396,7 +396,7 @@ function ErrorState({
         </Button>
         {code && (
           <Button variant="ghost" size="sm" render={<Link href={`/docs#${docErrorSlug(code)}`} />}>
-            Docs
+            What does this mean?
           </Button>
         )}
       </div>

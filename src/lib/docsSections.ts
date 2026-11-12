@@ -32,7 +32,7 @@ export const DOC_SECTIONS: DocSectionMeta[] = [
   {
     id: 'api-keys',
     title: 'API keys & security',
-    keywords: ['key', 'env', 'proxy', 'secret', 'security', 'finnhub_api_key'],
+    keywords: ['key', 'proxy', 'secret', 'security', 'token', 'apikey', 'quota'],
   },
   {
     id: 'widget-types',
