@@ -439,7 +439,7 @@ function Formatting() {
 
 function PipeNode({ title, sub }: { title: string; sub: string }) {
   return (
-    <div className="flex-1 rounded-lg border border-subtle bg-surface px-3 py-2 text-center">
+    <div className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-center sm:flex-1">
       <p className="font-mono text-[11px] font-medium text-ink">{title}</p>
       <p className="mt-0.5 text-[10px] leading-snug text-faint">{sub}</p>
     </div>
@@ -449,11 +449,11 @@ function PipeNode({ title, sub }: { title: string; sub: string }) {
 function PipelineDiagram() {
   return (
     <div className="rounded-xl border border-subtle bg-raised/40 p-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col items-center gap-2 sm:flex-row">
         <PipeNode title="Widget" sub="own interval · ≥10s" />
-        <ArrowRight className="size-3.5 shrink-0 text-faint" aria-hidden />
+        <ArrowRight className="size-3.5 shrink-0 rotate-90 text-faint sm:rotate-0" aria-hidden />
         <PipeNode title="/api/proxy" sub="30s cache · dedupe · key injection" />
-        <ArrowRight className="size-3.5 shrink-0 text-faint" aria-hidden />
+        <ArrowRight className="size-3.5 shrink-0 rotate-90 text-faint sm:rotate-0" aria-hidden />
         <PipeNode title="Provider" sub="Finnhub · AV · Coinbase…" />
       </div>
       <p className="mt-3 text-center text-[11px] text-faint">

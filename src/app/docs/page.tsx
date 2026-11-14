@@ -14,7 +14,7 @@ export default function Docs() {
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink">
       <Header />
-      <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 pb-16">
+      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 pb-16 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-8">
           <div className="max-w-xl">
             <h1 className="font-display text-[32px] leading-none tracking-tight">

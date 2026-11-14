@@ -70,7 +70,7 @@ export function MorphPill({ slots, tint, index }: MorphPillProps) {
 
   return (
     <span
-      className="mx-1 inline-flex items-center gap-1.5 rounded-full bg-ink/[0.06] py-1 pr-3.5 pl-1.5 align-middle leading-[1.15] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(17,17,17,0.06),0_6px_14px_-6px_rgba(17,17,17,0.18)]"
+      className="mx-1 inline-flex items-center gap-1.5 rounded-full bg-ink/[0.06] py-1 pr-3.5 pl-1.5 align-middle leading-[1.15] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(17,17,17,0.06),0_6px_14px_-6px_rgba(17,17,17,0.18)] max-sm:gap-1 max-sm:pr-2.5 max-sm:pl-1"
     >
       <span
         className={`relative flex size-[1.5em] shrink-0 items-center justify-center ${

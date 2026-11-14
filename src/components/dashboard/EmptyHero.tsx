@@ -42,7 +42,7 @@ export function EmptyHero() {
       <CellMosaic side="left" />
       <CellMosaic side="right" />
 
-      <div className="relative z-10 mx-auto flex max-w-[940px] flex-col items-center px-6 pt-[10vh] pb-24 text-center">
+      <div className="relative z-10 mx-auto flex max-w-[940px] flex-col items-center px-4 pt-[10vh] pb-24 text-center sm:px-6">
         <h1 className="font-display text-[clamp(2.75rem,7vw,7.5rem)] leading-none tracking-[-0.02em]">
           What&rsquo;s moving
         </h1>
@@ -50,16 +50,18 @@ export function EmptyHero() {
           today?
         </h1>
 
-        <p className="mt-7 max-w-[34rem] text-[clamp(1.05rem,1.9vw,1.5rem)] font-medium leading-[1.7] text-ink/90">
+        <p className="mt-7 max-w-[34rem] text-[clamp(0.95rem,3.4vw,1.5rem)] font-medium leading-[1.7] text-ink/90">
           <span className="block sm:whitespace-nowrap">
-            FinBoard turns any finance API into live{' '}
-            <MorphPill {...PILLS[0]} index={indices[0]} />,{' '}
+            FinBoard turns any finance API into{' '}
+            <span className="whitespace-nowrap">
+              live <MorphPill {...PILLS[0]} index={indices[0]} />,
+            </span>{' '}
           </span>
           <span className="block sm:whitespace-nowrap">
             <MorphPill {...PILLS[1]} index={indices[1]} />
             <span className="mx-1">and</span>
             <MorphPill {...PILLS[2]} index={indices[2]} />
-            <span>, arranged your way.</span>
+            <span className="whitespace-nowrap">, arranged your way.</span>
           </span>
         </p>
 
